@@ -3617,6 +3617,129 @@
             }
             const action = document.getElementById('rqOfflineCsvImportAction');
             if (action) action.classList.add('hidden');
+            const report = document.getElementById('rqOfflineCsvImportDetailedReport');
+            if (report) { report.className = 'hidden mt-3 rounded-2xl border-2 border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60 p-4'; report.innerHTML = ''; }
+        };
+
+        // ============================================================
+        // LAPORAN DETAIL IMPORT CSV
+        // Menjelaskan isi file dan perbedaan sebelum Ganti/Gabungkan.
+        // ============================================================
+        window.rqEscImportHtml = function(v) {
+            return String(v ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+        };
+        window.rqImportJson = function(v, fallback) {
+            try { return JSON.parse(v); } catch (_) { return fallback; }
+        };
+        window.rqImportRecordText = function(r) {
+            const name = String(r?.name || '-');
+            const tanggal = String(r?.tanggal || r?.date || '').trim();
+            const detail = String(r?.detail || '').trim();
+            const status = String(r?.status || '').trim();
+            const catatan = String(r?.catatan || '').trim();
+            const slots = Array.isArray(r?.slots) ? r.slots : [];
+            const slotText = slots.map(x => {
+                const surat = x?.surat || x?.name || '';
+                const awal = x?.ayatAwal ?? x?.start ?? '';
+                const akhir = x?.ayatAkhir ?? x?.end ?? '';
+                return surat ? `${surat}${awal!=='' ? ` ${awal}${akhir!=='' ? `–${akhir}`:''}` : ''}` : '';
+            }).filter(Boolean).join(' · ');
+            return [name, tanggal, detail || slotText, status ? `Status: ${status}` : '', catatan ? `Catatan: ${catatan}` : ''].filter(Boolean).join(' — ');
+        };
+        window.rqImportTargetText = function(name, t, label) {
+            if (!t) return '';
+            return [name, label, t.juz ? `Juz ${t.juz}` : '', t.surat || '', t.ayat ? `sampai ayat ${t.ayat}` : '', t.kali ? `target ${t.kali} setoran` : '', t.mulai && t.selesai ? `${t.mulai} s.d ${t.selesai}` : ''].filter(Boolean).join(' — ');
+        };
+        window.buildImportDetailedReport = function(mode, imported, importedSantri, targetInfo) {
+            const esc = window.rqEscImportHtml;
+            const parse = window.rqImportJson;
+            const current = {};
+            for (let i=0;i<localStorage.length;i++) {
+                const k=localStorage.key(i);
+                if(k && k.startsWith('rq_')) current[k]=localStorage.getItem(k);
+            }
+            const incoming = imported || {};
+            const currentSantri = parse(current.rq_santri_master, Array.isArray(window.santriList)?window.santriList:[]) || [];
+            const incSantri = Array.isArray(importedSantri) ? importedSantri : [];
+            const sig = x => { try { return JSON.stringify(x); } catch (_) { return String(x); } };
+            const santriKey = x => String(x?.id||'').trim() || `${String(x?.name||'').trim().toLowerCase()}|${String(x?.class||'').trim().toLowerCase()}`;
+            const oldSantriMap = new Map(currentSantri.map(x=>[santriKey(x),x]));
+            const newSantri = incSantri.filter(x=>!oldSantriMap.has(santriKey(x)));
+            const changedSantri = incSantri.filter(x=>{const old=oldSantriMap.get(santriKey(x));return old && sig(old)!==sig(x);});
+            const section = (title, items, empty='Tidak ada') => `<details open class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/60 p-3"><summary class="cursor-pointer font-black text-xs sm:text-sm text-slate-800 dark:text-slate-100">${esc(title)} <span class="text-slate-500">(${items.length})</span></summary><div class="mt-2 space-y-1.5 text-[11px] font-bold text-slate-700 dark:text-slate-300">${items.length?items.map(x=>`<div class="rounded-lg bg-slate-50 dark:bg-slate-800/80 px-3 py-2 border border-slate-100 dark:border-slate-700">${x}</div>`).join(''):`<div class="text-slate-500">${esc(empty)}</div>`}</div></details>`;
+
+            const historyKeys = [
+                ['rq_history_bacaan','Bacaan'],['rq_history_hafalan','Hafalan'],
+                ['rq_history_murojaah',"Muroja’ah"],['rq_history_tugas','Tugas'],['rq_history_rekapan','Riwayat Rekapan']
+            ];
+            const historyReport=[];
+            for(const [key,label] of historyKeys){
+                const incomingRows = parse(incoming[key],[]); const currentRows = parse(current[key],[]);
+                const ia=Array.isArray(incomingRows)?incomingRows:[]; const ca=Array.isArray(currentRows)?currentRows:[];
+                const oldExact=new Set(ca.map(sig));
+                const notExact=ia.filter(x=>!oldExact.has(sig(x)));
+                const logicalKey=x=>`${String(x?.name||'').trim().toLowerCase()}|${String(x?.tanggal||'').trim()}|${String(x?.detail||'').trim()}|${String(x?.type||label).trim()}`;
+                const oldLogical=new Set(ca.map(logicalKey));
+                const changed=mode==='merge'?notExact.filter(x=>oldLogical.has(logicalKey(x))):[];
+                const brandNew=mode==='merge'?notExact.filter(x=>!oldLogical.has(logicalKey(x))):ia;
+                historyReport.push({label,ia,ca,brandNew,changed});
+            }
+
+            const targetIncoming = targetInfo && typeof targetInfo==='object' ? targetInfo : parse(incoming.rq_target_hafalan_murojaah_v2,{}) || {};
+            const targetCurrent = parse(current.rq_target_hafalan_murojaah_v2,{}) || {};
+            const targetNew=[]; const targetChanged=[];
+            for(const type of ['hafalan','murojaah']){
+                const ib=targetIncoming?.[type]&&typeof targetIncoming[type]==='object'?targetIncoming[type]:{};
+                const cb=targetCurrent?.[type]&&typeof targetCurrent[type]==='object'?targetCurrent[type]:{};
+                for(const name of Object.keys(ib)){
+                    const inc=ib[name]||{}; const old=cb[name]||{};
+                    if(type==='hafalan'){
+                        for(const slot of ['jangkaPendek','akanDatang']){
+                            const it=inc?.[slot]||null, ot=old?.[slot]||null;
+                            if(!it) continue;
+                            const logical=v=>v?JSON.stringify({juz:v.juz,surat:v.surat,ayat:v.ayat,kali:v.kali,mulai:v.mulai,selesai:v.selesai}):'';
+                            const label=slot==='jangkaPendek'?'Target Saat Ini':'Target Yang Akan Datang';
+                            if(mode==='merge' && ot && logical(it)!==logical(ot)) targetChanged.push(`<b>${esc(window.rqImportTargetText(name,ot,label))}</b><br><span class="text-violet-700 dark:text-violet-300">→ ${esc(window.rqImportTargetText(name,it,label))}</span>`);
+                            else if(mode==='merge' && !ot) targetNew.push(esc(window.rqImportTargetText(name,it,label)));
+                            else if(mode==='replace') targetNew.push(esc(window.rqImportTargetText(name,it,label)));
+                        }
+                    } else {
+                        const logical=v=>v?JSON.stringify({juz:v.juz,surat:v.surat,ayat:v.ayat,kali:v.kali,mulai:v.mulai,selesai:v.selesai}):'';
+                        if(mode==='merge' && old && logical(inc)!==logical(old)) targetChanged.push(`<b>${esc(window.rqImportTargetText(name,old,'Target Muroja’ah lama'))}</b><br><span class="text-sky-700 dark:text-sky-300">→ ${esc(window.rqImportTargetText(name,inc,'Target Muroja’ah baru'))}</span>`);
+                        else if(mode==='merge' && !old) targetNew.push(esc(window.rqImportTargetText(name,inc,'Target Muroja’ah baru')));
+                        else if(mode==='replace') targetNew.push(esc(window.rqImportTargetText(name,inc,'Target Muroja’ah')));
+                    }
+                }
+            }
+
+            const scalar=[];
+            const ignored=['rq_santri_master',...historyKeys.map(x=>x[0]),'rq_target_hafalan_murojaah_v2'];
+            for(const key of Object.keys(incoming)){
+                if(ignored.includes(key)) continue;
+                if(mode==='replace') scalar.push(`<b>${esc(key)}</b> — isi file akan menjadi nilai yang dipakai`);
+                else if(current[key]===undefined) scalar.push(`<b>BARU:</b> ${esc(key)}`);
+                else if(current[key]!==incoming[key]) scalar.push(`<b>DIUBAH:</b> ${esc(key)} — nilai dari file akan dipakai`);
+            }
+
+            const summary = mode==='replace'
+                ? `<div class="rounded-xl border-2 border-violet-200 bg-violet-50 dark:bg-violet-950/30 p-3 text-[11px] font-bold"><div class="text-sm font-black text-violet-800 dark:text-violet-300">MODE GANTI</div><div class="mt-1">Semua data aplikasi dengan kunci <b>rq_</b> akan diganti oleh data dari file. Data browser di luar <b>rq_</b> tidak disentuh.</div></div>`
+                : `<div class="rounded-xl border-2 border-amber-200 bg-amber-50 dark:bg-amber-950/30 p-3 text-[11px] font-bold"><div class="text-sm font-black text-amber-800 dark:text-amber-300">MODE GABUNGKAN</div><div class="mt-1">Data lama tetap dipertahankan. Data baru ditambahkan. Target yang berubah akan memakai data target dari file; riwayat yang berbeda akan tetap menjadi riwayat tambahan, bukan menghapus riwayat lama.</div></div>`;
+            const santriItems = mode==='replace'
+                ? incSantri.map(x=>`<b>${esc(x?.name||'-')}</b> — Kelas: ${esc(x?.class||'-')} — Pengajar: ${esc(x?.teacher||'-')}`)
+                : newSantri.map(x=>`<b>${esc(x?.name||'-')}</b> — Kelas: ${esc(x?.class||'-')} — Pengajar: ${esc(x?.teacher||'-')}`);
+            const santriChangedItems = changedSantri.map(x=>{const o=oldSantriMap.get(santriKey(x));return `<b>${esc(x?.name||'-')}</b> — lama: Kelas ${esc(o?.class||'-')}, Pengajar ${esc(o?.teacher||'-')} → file: Kelas ${esc(x?.class||'-')}, Pengajar ${esc(x?.teacher||'-')}`;});
+            let html=`<div class="space-y-3 text-left">${summary}<div class="rounded-xl bg-slate-100 dark:bg-slate-800 p-3 text-[11px] font-black text-slate-800 dark:text-slate-100">RINGKASAN FILE: ${incSantri.length} santri · ${Object.keys(incoming).length} kunci aplikasi · ${Object.keys(targetIncoming?.hafalan||{}).length} santri target hafalan · ${Object.keys(targetIncoming?.murojaah||{}).length} santri target muroja’ah</div>`;
+            html += section(mode==='replace'?'SEMUA SANTRI YANG AKAN DI-GANTI':'SANTRI BARU YANG AKAN DITAMBAHKAN',santriItems);
+            if(mode==='merge') html += section('SANTRI YANG DATANYA BERBEDA / AKAN DIPERBARUI',santriChangedItems);
+            for(const h of historyReport){
+                html += section(`${mode==='replace'?'SEMUA':'DATA BARU'} ${h.label}`,h.brandNew.map(r=>esc(window.rqImportRecordText(r))));
+                if(mode==='merge') html += section(`DATA ${h.label.toUpperCase()} YANG BERUBAH`,h.changed.map(r=>esc(window.rqImportRecordText(r))));
+            }
+            html += section(mode==='replace'?'SEMUA TARGET YANG AKAN DI-GANTI':'TARGET BARU',targetNew);
+            if(mode==='merge') html += section('TARGET YANG BERUBAH',targetChanged);
+            html += section(mode==='replace'?'DATA / PENGATURAN LAIN YANG AKAN DI-GANTI':'DATA / PENGATURAN LAIN YANG BARU ATAU BERUBAH',scalar);
+            html += `<div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60 p-3 text-[10px] font-bold text-slate-600 dark:text-slate-400">Laporan ini dibuat dari perbandingan file dengan data perangkat saat file dibaca. Untuk Gabungkan, data yang sama persis tidak dihitung sebagai data baru; data riwayat yang berbeda akan ditambahkan, sedangkan target yang berubah akan mengikuti data target dari file.</div></div>`;
+            return html;
         };
 
         window.previewOfflineCsvFile = async function(file) {
@@ -3682,6 +3805,11 @@
                 if (!targetValidation.valid) throw new Error('Struktur Target dalam CSV tidak valid: ' + targetValidation.errors.slice(0,3).join('; '));
                 const mode = window.rqPendingCsvImportMode === 'merge' ? 'merge' : 'replace';
                 const modeText = mode === 'merge' ? 'GABUNGKAN' : 'GANTI';
+                const detailedReport = document.getElementById('rqOfflineCsvImportDetailedReport');
+                if (detailedReport) {
+                    detailedReport.className = 'mt-3 rounded-2xl border-2 border-indigo-200 dark:border-indigo-800 bg-white dark:bg-slate-900 p-4';
+                    detailedReport.innerHTML = '<div class="font-black text-sm text-indigo-800 dark:text-indigo-300 mb-3"><i class="fa-solid fa-clipboard-list mr-1"></i> LAPORAN LENGKAP YANG AKAN DIPROSES</div>' + window.buildImportDetailedReport(mode, imported, importedSantri, targetInfo);
+                }
                 if (box) {
                     box.className = 'mt-3 rounded-xl border-2 border-emerald-300 bg-emerald-50 dark:bg-slate-900/70 dark:border-emerald-800 p-4';
                     box.innerHTML = `
@@ -5914,6 +6042,7 @@
                             </div>
                         </div>
                         <div id="rqOfflineCsvImportStatus" class="hidden"></div>
+                        <div id="rqOfflineCsvImportDetailedReport" class="hidden mt-3 rounded-2xl border-2 border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60 p-4"></div>
                         <div id="rqOfflineCsvImportAction" class="hidden"></div>
                     </div>
 

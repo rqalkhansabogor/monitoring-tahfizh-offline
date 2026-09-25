@@ -6454,8 +6454,11 @@
   function updateSafetyUi(folderName){
     const on=safetyIsOn();
     if(safetyToggle){ safetyToggle.checked=on; safetyToggle.setAttribute('aria-checked',on?'true':'false'); }
-    if(safetyFolderBtn) safetyFolderBtn.disabled=!on;
-    if(safetyResetFolderBtn) safetyResetFolderBtn.disabled=!on;
+    // Folder boleh dipilih/di-reset baik saat ON maupun OFF.
+    // Jika OFF, backup tidak berjalan; tetapi pengguna tetap harus bisa
+    // menyiapkan folder terlebih dahulu sebelum menyalakan backup.
+    if(safetyFolderBtn) safetyFolderBtn.disabled=false;
+    if(safetyResetFolderBtn) safetyResetFolderBtn.disabled=false;
     if(safetyInfo){
       if(!safetySupported()) safetyInfo.innerHTML='<b>Backup Pengaman: '+(on?'ON':'OFF')+'</b><br>Browser ini belum mendukung pemilihan folder otomatis. Gunakan Chrome/Edge versi terbaru.';
       else if(!on) safetyInfo.innerHTML='<b>Backup Pengaman: OFF</b><br>Backup pengaman otomatis tidak akan dibuat.';

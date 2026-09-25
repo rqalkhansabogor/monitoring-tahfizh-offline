@@ -3455,16 +3455,19 @@
                             ? 'Data dari CSV akan digabung dengan data lokal yang sekarang. Data lama tidak dihapus.\nUntuk data yang sama, data dari CSV menjadi versi terbaru.\n'
                             : 'Data aplikasi lokal saat ini akan diganti dengan data dari CSV.\nData browser di luar kunci rq_* tetap tidak disentuh.\n') +
                         `\nKunci dari CSV: ${jumlah}` + (Array.isArray(importedSantri) ? `\nSantri dari CSV: ${importedSantri.length}` : '') +
-                        `\n\nBackup pengaman JSON akan dibuat otomatis sebelum impor.\nLanjutkan?`
+                        `\n\nJika Backup Pengaman ON, backup akan disimpan ke folder yang Anda pilih sebelum impor.\nLanjutkan?`
                     );
                     if (!ok) return;
                 }
 
                 try {
                     if (typeof window.rqCreateSafetyBackup === 'function') {
-                        window.rqCreateSafetyBackup('sebelum-import-csv-' + mode);
+                        const backupOk = await window.rqCreateSafetyBackup('sebelum-import-csv-' + mode);
+                        if (!backupOk) throw new Error('Backup pengaman belum berhasil dibuat. Import dibatalkan agar data lama tetap aman.');
                     }
-                } catch (_) {}
+                } catch (e) {
+                    throw e;
+                }
 
                 const readLocal = key => {
                     try { return localStorage.getItem(key); } catch (_) { return null; }
@@ -4021,9 +4024,14 @@
                 const incoming=obj.localStorage, incomingSantri=Array.isArray(obj.santriList)?obj.santriList:[];
                 const ok=confirm(`IMPORT FILE SINKRONISASI — ${mode==='merge'?'GABUNGKAN':'GANTI'}\n\n`+
                     (mode==='merge'?'Data lokal tetap dipertahankan dan data file akan digabung.':'Data aplikasi rq_* lokal akan diganti dengan isi file.')+
-                    `\nKunci data: ${Object.keys(incoming).length}\nSantri: ${incomingSantri.length}\n\nBackup pengaman dibuat sebelum proses. Lanjutkan?`);
+                    `\nKunci data: ${Object.keys(incoming).length}\nSantri: ${incomingSantri.length}\n\nJika Backup Pengaman ON, backup akan disimpan ke folder yang Anda pilih sebelum proses. Lanjutkan?`);
                 if(!ok)return;
-                try{if(typeof window.rqCreateSafetyBackup==='function')window.rqCreateSafetyBackup('sebelum-import-sinkronisasi-'+mode);}catch(_){ }
+                try{
+                    if(typeof window.rqCreateSafetyBackup==='function'){
+                        const backupOk=await window.rqCreateSafetyBackup('sebelum-import-sinkronisasi-'+mode);
+                        if(!backupOk) throw new Error('Backup pengaman belum berhasil dibuat. Sinkronisasi dibatalkan agar data lama tetap aman.');
+                    }
+                }catch(e){ throw e; }
                 const parse=v=>{try{return JSON.parse(v);}catch(_){return null;}};
                 const dedupe=arr=>{const out=[],seen=new Set();for(const x of Array.isArray(arr)?arr:[]){let k;try{k=JSON.stringify(x)}catch(_){k=String(x)}if(!seen.has(k)){seen.add(k);out.push(x)}}return out};
                 if(mode==='replace'){
@@ -4049,14 +4057,14 @@
             }catch(e){console.error(e);window.showToast('Import file sinkronisasi gagal: '+(e?.message||e),'error');}
         };
 
-        window.resetDailyLogsOnly = function() {
-            // Pengaman: selalu buat snapshot backup sebelum reset data setoran.
-            try {
-                if (typeof window.rqCreateSafetyBackup === 'function') {
-                    window.rqCreateSafetyBackup('sebelum-reset-setoran');
-                }
-            } catch (_) {}
-            if (confirm("Reset data setoran harian? Backup pengaman sudah dibuat. Lanjutkan?")) {
+        window.resetDailyLogsOnly = async function() {
+            if (confirm("Reset data setoran harian? Jika Backup Pengaman aktif, backup akan disimpan ke folder yang Anda pilih sebelum reset. Lanjutkan?")) {
+                try {
+                    if (typeof window.rqCreateSafetyBackup === 'function') {
+                        const backupOk = await window.rqCreateSafetyBackup('sebelum-reset-setoran');
+                        if (!backupOk) { window.showToast('Reset dibatalkan karena backup pengaman belum berhasil dibuat.', 'error'); return; }
+                    }
+                } catch (e) { window.showToast('Reset dibatalkan: backup pengaman gagal.', 'error'); return; }
                 window.santriList.forEach(s => {
                     s.lastBacaan = '-';
                     s.lastHafalan = '-';
@@ -6226,6 +6234,19 @@
       <button type="button" id="rqDiagBtn"><i class="fa-solid fa-stethoscope"></i> Diagnosa Sistem</button>
       <button type="button" id="rqStorageCheckBtn"><i class="fa-solid fa-database"></i> Cek Storage</button>
     </div>
+    <div id="rqSafetyBackupBox" style="margin-top:10px;padding:12px;border:1px solid #cbd5e1;border-radius:14px;background:#f8fafc">
+      <div style="font-weight:900;font-size:13px;margin-bottom:7px"><i class="fa-solid fa-shield-halved"></i> Backup Pengaman Otomatis</div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">
+        <label style="display:flex;align-items:center;gap:8px;font-weight:800">
+          <input id="rqSafetyBackupToggle" type="checkbox" checked style="width:20px;height:20px">
+          <span>ON / OFF</span>
+        </label>
+        <button type="button" id="rqSafetyBackupFolderBtn" style="padding:8px 11px;border-radius:10px;background:#0f766e;color:#fff;font-weight:900"><i class="fa-solid fa-folder-open"></i> Pilih Folder Simpan</button>
+        <button type="button" id="rqSafetyBackupResetFolderBtn" style="padding:8px 11px;border-radius:10px;background:#e2e8f0;color:#334155;font-weight:900"><i class="fa-solid fa-rotate-left"></i> Reset Folder</button>
+      </div>
+      <div id="rqSafetyBackupInfo" style="font-size:11px;line-height:1.5;color:#475569">Memuat pengaturan backup...</div>
+      <div style="margin-top:7px;font-size:10px;color:#64748b">Jika ON, backup pengaman <b>tidak akan mengunduh sendiri</b> dan <b>tidak akan meminta folder secara tiba-tiba</b>. Pilih folder terlebih dahulu. Backup disimpan sebagai file JSON di folder tersebut. Jika OFF, backup pengaman tidak dibuat.</div>
+    </div>
     <input id="rqOfflineRestoreInput" type="file" accept="application/json,.json">
     <div id="rqOfflineHealth" class="rq-offline-health">Database lokal siap diperiksa.</div>
   </div>
@@ -6301,23 +6322,129 @@
     }
   }
 
-  // Backup pengaman internal: tidak mengganggu tombol backup utama.
-  window.rqCreateSafetyBackup=function(reason){
+  // ============================================================
+  // BACKUP PENGAMAN — TIDAK LAGI DOWNLOAD OTOMATIS.
+  // Backup hanya berjalan jika ON dan folder tujuan sudah dipilih.
+  // Folder dipilih pengguna melalui File System Access API dan
+  // handle folder disimpan di IndexedDB agar dapat digunakan lagi.
+  // ============================================================
+  const safetyToggle=document.getElementById('rqSafetyBackupToggle');
+  const safetyFolderBtn=document.getElementById('rqSafetyBackupFolderBtn');
+  const safetyResetFolderBtn=document.getElementById('rqSafetyBackupResetFolderBtn');
+  const safetyInfo=document.getElementById('rqSafetyBackupInfo');
+  const SAFETY_DB='rq-al-khansa-safety-settings';
+  const SAFETY_STORE='settings';
+  const SAFETY_KEY='folderHandle';
+
+  function safetySupported(){ return typeof window.showDirectoryPicker==='function' && typeof indexedDB!=='undefined'; }
+  function safetyOpenDb(){
+    return new Promise((resolve,reject)=>{
+      if(typeof indexedDB==='undefined') return reject(new Error('IndexedDB tidak tersedia.'));
+      const req=indexedDB.open(SAFETY_DB,1);
+      req.onupgradeneeded=()=>{ try{ req.result.createObjectStore(SAFETY_STORE); }catch(_){} };
+      req.onsuccess=()=>resolve(req.result);
+      req.onerror=()=>reject(req.error||new Error('Database pengaturan folder gagal dibuka.'));
+    });
+  }
+  async function safetyDbPut(value){
+    const db=await safetyOpenDb();
+    return new Promise((resolve,reject)=>{
+      const tx=db.transaction(SAFETY_STORE,'readwrite');
+      tx.objectStore(SAFETY_STORE).put(value,SAFETY_KEY);
+      tx.oncomplete=()=>{db.close();resolve(true)};
+      tx.onerror=()=>{db.close();reject(tx.error||new Error('Gagal menyimpan folder.'))};
+    });
+  }
+  async function safetyDbGet(){
+    const db=await safetyOpenDb();
+    return new Promise((resolve,reject)=>{
+      const tx=db.transaction(SAFETY_STORE,'readonly');
+      const req=tx.objectStore(SAFETY_STORE).get(SAFETY_KEY);
+      req.onsuccess=()=>resolve(req.result||null);
+      req.onerror=()=>reject(req.error||new Error('Gagal membaca folder.'));
+      tx.oncomplete=()=>db.close();
+    });
+  }
+  async function safetyDbDelete(){
+    const db=await safetyOpenDb();
+    return new Promise((resolve,reject)=>{
+      const tx=db.transaction(SAFETY_STORE,'readwrite');
+      tx.objectStore(SAFETY_STORE).delete(SAFETY_KEY);
+      tx.oncomplete=()=>{db.close();resolve(true)};
+      tx.onerror=()=>{db.close();reject(tx.error||new Error('Gagal menghapus folder.'))};
+    });
+  }
+  function safetyIsOn(){ return localStorage.getItem('rq_safety_backup_enabled')!=='0'; }
+  function safetySetOn(on){ localStorage.setItem('rq_safety_backup_enabled',on?'1':'0'); updateSafetyUi(); }
+  function updateSafetyUi(folderName){
+    const on=safetyIsOn();
+    if(safetyToggle){ safetyToggle.checked=on; safetyToggle.setAttribute('aria-checked',on?'true':'false'); }
+    if(safetyFolderBtn) safetyFolderBtn.disabled=!on;
+    if(safetyResetFolderBtn) safetyResetFolderBtn.disabled=!on;
+    if(safetyInfo){
+      if(!safetySupported()) safetyInfo.innerHTML='<b>Backup Pengaman: '+(on?'ON':'OFF')+'</b><br>Browser ini belum mendukung pemilihan folder otomatis. Gunakan Chrome/Edge versi terbaru.';
+      else if(!on) safetyInfo.innerHTML='<b>Backup Pengaman: OFF</b><br>Backup pengaman otomatis tidak akan dibuat.';
+      else if(folderName) safetyInfo.innerHTML='<b>Backup Pengaman: ON</b><br>Folder penyimpanan: <b>'+String(folderName).replace(/[<>&"']/g,'')+'</b>';
+      else safetyInfo.innerHTML='<b>Backup Pengaman: ON</b><br><span style="color:#b45309">Folder belum dipilih. Pilih folder sebelum melakukan Ganti/Gabungkan/Reset.</span>';
+    }
+  }
+  async function getSafetyFolder(){
+    if(!safetySupported()) return null;
     try{
-      const c=collect();
-      const payload={
-        format:'rq-al-khansa-offline-backup',
-        version:2,
-        createdAt:new Date().toISOString(),
-        deviceOnly:true,
-        reason:String(reason||'pengaman'),
-        localStorage:c.data
-      };
-      const stamp=new Date().toISOString().replace(/[:.]/g,'-');
-      downloadJson(payload,'RQ-Al-Khansa-Safety-'+String(reason||'backup')+'-'+stamp+'.json');
+      const h=await safetyDbGet();
+      if(h && h.name) {
+        try{ if((await h.queryPermission({mode:'readwrite'}))==='granted') return h; }catch(_){}
+        try{ if((await h.requestPermission({mode:'readwrite'}))==='granted') return h; }catch(_){}
+      }
+    }catch(_){}
+    return null;
+  }
+  async function chooseSafetyFolder(){
+    if(!safetySupported()){ notify('Browser ini belum mendukung penyimpanan backup ke folder. Gunakan Chrome/Edge versi terbaru.','error'); return null; }
+    try{
+      const h=await window.showDirectoryPicker({mode:'readwrite'});
+      await safetyDbPut(h);
+      updateSafetyUi(h.name);
+      notify('Folder backup pengaman disimpan: '+h.name,'success');
+      return h;
+    }catch(e){ if(e?.name!=='AbortError') notify('Pemilihan folder dibatalkan/gagal: '+(e?.message||e),'error'); return null; }
+  }
+  async function writeSafetyBackupToFolder(reason){
+    const h=await getSafetyFolder();
+    if(!h){
+      notify('Backup Pengaman ON, tetapi folder penyimpanan belum siap. Pilih folder pada menu Backup Pengaman terlebih dahulu. Proses dibatalkan demi keamanan.','error');
+      updateSafetyUi('');
+      return false;
+    }
+    const c=collect();
+    const payload={
+      format:'rq-al-khansa-offline-backup', version:2, createdAt:new Date().toISOString(),
+      deviceOnly:true, reason:String(reason||'pengaman'), localStorage:c.data
+    };
+    const stamp=new Date().toISOString().replace(/[:.]/g,'-');
+    const fileName='RQ-Al-Khansa-Safety-'+String(reason||'backup').replace(/[^a-zA-Z0-9_-]+/g,'-')+'-'+stamp+'.json';
+    try{
+      const fh=await h.getFileHandle(fileName,{create:true});
+      const writable=await fh.createWritable();
+      await writable.write(JSON.stringify(payload));
+      await writable.close();
+      updateSafetyUi(h.name);
       return true;
-    }catch(e){ console.warn('Safety backup gagal:',e); return false; }
+    }catch(e){
+      console.warn('Safety backup gagal:',e);
+      notify('Backup pengaman gagal disimpan ke folder yang dipilih. Proses dibatalkan demi keamanan.','error');
+      return false;
+    }
+  }
+  window.rqCreateSafetyBackup=async function(reason){
+    if(!safetyIsOn()) return true;
+    return await writeSafetyBackupToFolder(reason);
   };
+
+  safetyToggle?.addEventListener('change',()=>{ safetySetOn(!!safetyToggle.checked); });
+  safetyFolderBtn?.addEventListener('click',()=>chooseSafetyFolder());
+  safetyResetFolderBtn?.addEventListener('click',async()=>{ try{await safetyDbDelete();updateSafetyUi();notify('Folder backup pengaman direset.','success');}catch(e){notify('Gagal mereset folder: '+(e?.message||e),'error')} });
+  (async()=>{ try{const h=await safetyDbGet();updateSafetyUi(h?.name||'');}catch(_){updateSafetyUi('');} })();
 
   // Diagnosa sistem lokal tanpa mengubah data.
   window.rqRunSystemDiagnostics=async function(){

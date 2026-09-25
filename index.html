@@ -3902,6 +3902,57 @@
             } catch(e) { console.error(e); window.showToast('Download rekapan gagal: '+(e?.message||e),'error'); }
         };
 
+        window.deleteSantriFromRekapan = async function(name) {
+            const targetName = String(name || '').trim();
+            if (!targetName) return;
+            const sameName = v => String(v || '').trim().toLowerCase() === targetName.toLowerCase();
+            const ok = confirm(
+                `HAPUS SANTRI\n\nNama: ${targetName}\n\n` +
+                `Semua data santri ini akan dihapus dari Rekapan, termasuk master santri, riwayat Bacaan, Hafalan, Muroja’ah, Tugas, Rekapan, serta Target Hafalan/Muroja’ah.\n\n` +
+                `Data santri lain tidak akan dihapus.\n\nLanjutkan?`
+            );
+            if (!ok) return;
+            try {
+                if (typeof window.rqCreateSafetyBackup === 'function') {
+                    const backupOk = await window.rqCreateSafetyBackup('sebelum-hapus-santri-' + targetName);
+                    if (!backupOk) return;
+                }
+
+                // Hapus santri dari master lokal.
+                const master = Array.isArray(window.santriList) ? window.santriList : [];
+                window.santriList = master.filter(s => !sameName(s?.name));
+                localStorage.setItem('rq_santri_master', JSON.stringify(window.santriList));
+
+                // Hapus semua riwayat milik santri ini saja.
+                ['rq_history_bacaan','rq_history_hafalan','rq_history_murojaah','rq_history_tugas','rq_history_rekapan'].forEach(key => {
+                    try {
+                        const arr = JSON.parse(localStorage.getItem(key) || '[]');
+                        if (Array.isArray(arr)) {
+                            localStorage.setItem(key, JSON.stringify(arr.filter(row => !sameName(row?.name))));
+                        }
+                    } catch (_) {}
+                });
+
+                // Hapus Target Hafalan/Muroja’ah milik santri ini dari format baru dan legacy.
+                ['rq_target_hafalan_murojaah_v2','rq_target_hafalan_murojaah_v1'].forEach(key => {
+                    try {
+                        const db = JSON.parse(localStorage.getItem(key) || '{}') || {};
+                        ['hafalan','murojaah'].forEach(type => {
+                            if (!db[type] || typeof db[type] !== 'object') return;
+                            Object.keys(db[type]).forEach(k => { if (sameName(k)) delete db[type][k]; });
+                        });
+                        localStorage.setItem(key, JSON.stringify(db));
+                    } catch (_) {}
+                });
+
+                window.showToast(`Data ${targetName} berhasil dihapus dari Rekapan.`, 'success');
+                window.renderRekapan();
+            } catch (e) {
+                console.error(e);
+                window.showToast('Gagal menghapus santri: ' + (e?.message || e), 'error');
+            }
+        };
+
         window.renderRekapan = function() {
             const box = document.getElementById('rekapanContent');
             if (!box) return;
@@ -3917,6 +3968,22 @@
                 const f = v => { const d = new Date(`${v}T00:00:00`); return `${d.getDate()} ${mons[d.getMonth()]}`; };
                 return `${f(t.mulai)} s.d ${f(t.selesai)} (${hari} Hari)`;
             };
+            const latestInputTime = name => {
+                const keys = ['rq_history_bacaan','rq_history_hafalan','rq_history_murojaah','rq_history_tugas'];
+                let latest = 0;
+                keys.forEach(key => {
+                    try {
+                        const arr = JSON.parse(localStorage.getItem(key) || '[]');
+                        if (!Array.isArray(arr)) return;
+                        arr.forEach(row => {
+                            if (String(row?.name || '').trim().toLowerCase() !== String(name || '').trim().toLowerCase()) return;
+                            const t = Number(row?.rawTime) || Date.parse(row?.timestamp || row?.tanggal || '') || 0;
+                            if (t > latest) latest = t;
+                        });
+                    } catch (_) {}
+                });
+                return latest;
+            };
             const rows = list.map(s => {
                 const name = String(s.name || '').trim();
                 const h = targetDB.hafalan?.[name] || {};
@@ -3924,7 +3991,11 @@
                 const q = cur && window.rqTargetEngine?.calc ? window.rqTargetEngine.calc('hafalan', name, cur) : {};
                 const st = cur && window.rqTargetEngine?.status ? window.rqTargetEngine.status(cur, q) : {status:'Belum Ada',result:'Belum dinilai'};
                 const target = cur ? [cur.juz ? `Juz ${cur.juz}` : '', cur.surat || ''].filter(Boolean).join(' · ') : '-';
-                return {s, cur, q, st, target};
+                return {s, cur, q, st, target, latestInput: latestInputTime(name)};
+            }).sort((a,b) => {
+                const bt = Number(b.latestInput) || 0, at = Number(a.latestInput) || 0;
+                if (bt !== at) return bt - at;
+                return String(a.s.name || '').localeCompare(String(b.s.name || ''), 'id');
             });
             const active = rows.filter(r => r.cur && r.st.status === 'Sedang Berjalan').length;
             const done = rows.filter(r => r.cur && r.st.result === 'Berhasil').length;
@@ -3949,8 +4020,9 @@
                         <td class="px-3 py-3 min-w-[180px]"><div class="font-black text-xs">${esc(r.target)}</div><div class="mt-1.5 h-2.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden"><div class="h-full bg-emerald-500 rounded-full" style="width:${p}%"></div></div><div class="mt-1 text-[10px] font-black text-emerald-700 dark:text-emerald-300">${p}% · ${esc(r.q.lastAyat || 0)}/${esc(r.q.ayatTarget || 0)} ayat</div></td>
                         <td class="px-3 py-3 min-w-[170px]"><span class="inline-flex px-2.5 py-1 rounded-lg text-[10px] font-black ${statusClass}">${esc(r.st.status)}</span><div class="mt-1 text-[10px] font-bold text-slate-500">${esc(r.st.result)}</div></td>
                         <td class="px-3 py-3 text-[10px] font-bold text-slate-500 min-w-[145px]">${esc(fmtPeriod(r.cur))}</td>
+                        <td class="px-3 py-3 text-center w-[64px]"><button type="button" title="Hapus semua data santri ini" aria-label="Hapus ${esc(r.s.name)}" onclick='window.deleteSantriFromRekapan(${JSON.stringify(r.s.name)})' class="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-rose-100 text-rose-600 hover:bg-rose-600 hover:text-white border border-rose-200 transition active:scale-95"><i class="fa-solid fa-trash"></i></button></td>
                     </tr>`;
-                }).join('') : '<tr><td colspan="9" class="p-8 text-center text-xs font-bold text-slate-500">Tidak ada data yang sesuai.</td></tr>';
+                }).join('') : '<tr><td colspan="10" class="p-8 text-center text-xs font-bold text-slate-500">Tidak ada data yang sesuai.</td></tr>';
                 if (count) count.textContent = `${filtered.length} dari ${rows.length} santri`;
             };
             window.filterRekapan = function() {
@@ -3979,7 +4051,7 @@
                     </div>
                     <div class="px-3.5 sm:px-4 pb-2 flex items-center justify-between gap-2"><div class="text-[10px] font-black text-slate-500">Tabel Rekapan</div><div id="rekapanResultCount" class="text-[10px] font-black text-emerald-700 dark:text-emerald-300"></div></div>
                     <div class="overflow-x-auto custom-scrollbar">
-                        <table class="w-full min-w-[1150px] text-left"><thead class="bg-slate-100 dark:bg-slate-900 text-[10px] font-black text-slate-600 dark:text-slate-300 uppercase"><tr><th class="px-3 py-3">Santri</th><th class="px-3 py-3">Kelas</th><th class="px-3 py-3">Pengajar</th><th class="px-3 py-3">Bacaan Terakhir</th><th class="px-3 py-3">Hafalan Terakhir</th><th class="px-3 py-3">Murojaah Terakhir</th><th class="px-3 py-3">Target & Progress</th><th class="px-3 py-3">Status</th><th class="px-3 py-3">Periode</th></tr></thead><tbody id="rekapanTableBody"></tbody></table>
+                        <table class="w-full min-w-[1150px] text-left"><thead class="bg-slate-100 dark:bg-slate-900 text-[10px] font-black text-slate-600 dark:text-slate-300 uppercase"><tr><th class="px-3 py-3">Santri</th><th class="px-3 py-3">Kelas</th><th class="px-3 py-3">Pengajar</th><th class="px-3 py-3">Bacaan Terakhir</th><th class="px-3 py-3">Hafalan Terakhir</th><th class="px-3 py-3">Murojaah Terakhir</th><th class="px-3 py-3">Target & Progress</th><th class="px-3 py-3">Status</th><th class="px-3 py-3">Periode</th><th class="px-3 py-3 text-center">Hapus</th></tr></thead><tbody id="rekapanTableBody"></tbody></table>
                     </div>
                 </div>`;
             renderTable(rows);
@@ -6060,6 +6132,8 @@
                 </div>
 
                 <div class="flex flex-wrap items-center gap-3 pt-2">
+                    <div id="rqSafetyBackupPlacement" class="mt-4"></div>
+
                     <button onclick="window.exportDataToExcel()" class="px-4.5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-xs sm:text-sm flex items-center gap-2 shadow-md transition active:scale-95">
                         <i class="fa-solid fa-file-excel text-sm"></i> Download Ringkasan Santri (.csv)
                     </button>
@@ -6234,8 +6308,9 @@
       <button type="button" id="rqDiagBtn"><i class="fa-solid fa-stethoscope"></i> Diagnosa Sistem</button>
       <button type="button" id="rqStorageCheckBtn"><i class="fa-solid fa-database"></i> Cek Storage</button>
     </div>
-    <div id="rqSafetyBackupBox" style="margin-top:10px;padding:12px;border:1px solid #cbd5e1;border-radius:14px;background:#f8fafc">
-      <div style="font-weight:900;font-size:13px;margin-bottom:7px"><i class="fa-solid fa-shield-halved"></i> Backup Pengaman Otomatis</div>
+    <div id="rqSafetyBackupBox" style="margin-top:10px;padding:16px;border:2px solid #bfdbfe;border-radius:16px;background:#f8fafc">
+      <div style="font-weight:900;font-size:15px;margin-bottom:6px"><i class="fa-solid fa-shield-halved"></i> Backup Pengaman Otomatis</div>
+      <div style="font-size:10px;color:#64748b;font-weight:700;margin-bottom:10px">Pengaturan khusus untuk backup pengaman sebelum Ganti, Gabungkan, Hapus, atau Reset yang membutuhkan pengaman.</div>
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">
         <label style="display:flex;align-items:center;gap:8px;font-weight:800">
           <input id="rqSafetyBackupToggle" type="checkbox" checked style="width:20px;height:20px">
@@ -6445,6 +6520,14 @@
   safetyFolderBtn?.addEventListener('click',()=>chooseSafetyFolder());
   safetyResetFolderBtn?.addEventListener('click',async()=>{ try{await safetyDbDelete();updateSafetyUi();notify('Folder backup pengaman direset.','success');}catch(e){notify('Gagal mereset folder: '+(e?.message||e),'error')} });
   (async()=>{ try{const h=await safetyDbGet();updateSafetyUi(h?.name||'');}catch(_){updateSafetyUi('');} })();
+
+  // Tampilkan pengaturan Backup Pengaman langsung di menu Data.
+  // Hanya memindahkan elemen UI yang sudah ada; logika backup tetap sama.
+  try{
+    const placement=document.getElementById('rqSafetyBackupPlacement');
+    const safetyBox=document.getElementById('rqSafetyBackupBox');
+    if(placement && safetyBox) placement.appendChild(safetyBox);
+  }catch(_){}
 
   // Diagnosa sistem lokal tanpa mengubah data.
   window.rqRunSystemDiagnostics=async function(){

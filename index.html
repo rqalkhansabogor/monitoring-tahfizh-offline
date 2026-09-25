@@ -3419,7 +3419,7 @@
             return rows.filter(r => r.some(v => String(v ?? '').trim() !== ''));
         };
 
-        window.importAllLocalDataFromCsv = async function(file, mode = 'replace') {
+        window.importAllLocalDataFromCsv = async function(file, mode = 'replace', skipConfirm = false) {
             if (!file) return;
             try {
                 const text = await file.text();
@@ -3448,15 +3448,17 @@
 
                 const modeLabel = mode === 'merge' ? 'GABUNGKAN' : 'GANTI';
                 const jumlah = Object.keys(imported).length;
-                const ok = confirm(
-                    `IMPORT DATA OFFLINE — ${modeLabel}\n\n` +
-                    (mode === 'merge'
-                        ? 'Data dari CSV akan digabung dengan data lokal yang sekarang. Data lama tidak dihapus.\nUntuk data yang sama, data dari CSV menjadi versi terbaru.\n'
-                        : 'Data aplikasi lokal saat ini akan diganti dengan data dari CSV.\nData browser di luar kunci rq_* tetap tidak disentuh.\n') +
-                    `\nKunci dari CSV: ${jumlah}` + (Array.isArray(importedSantri) ? `\nSantri dari CSV: ${importedSantri.length}` : '') +
-                    `\n\nBackup pengaman JSON akan dibuat otomatis sebelum impor.\nLanjutkan?`
-                );
-                if (!ok) return;
+                if (!skipConfirm) {
+                    const ok = confirm(
+                        `IMPORT DATA OFFLINE — ${modeLabel}\n\n` +
+                        (mode === 'merge'
+                            ? 'Data dari CSV akan digabung dengan data lokal yang sekarang. Data lama tidak dihapus.\nUntuk data yang sama, data dari CSV menjadi versi terbaru.\n'
+                            : 'Data aplikasi lokal saat ini akan diganti dengan data dari CSV.\nData browser di luar kunci rq_* tetap tidak disentuh.\n') +
+                        `\nKunci dari CSV: ${jumlah}` + (Array.isArray(importedSantri) ? `\nSantri dari CSV: ${importedSantri.length}` : '') +
+                        `\n\nBackup pengaman JSON akan dibuat otomatis sebelum impor.\nLanjutkan?`
+                    );
+                    if (!ok) return;
+                }
 
                 try {
                     if (typeof window.rqCreateSafetyBackup === 'function') {
@@ -3551,10 +3553,115 @@
             }
         };
 
+        window.rqPendingCsvFile = null;
+        window.rqPendingCsvImportMode = 'replace';
+
         window.openOfflineCsvImport = function(mode = 'replace') {
-            const input = document.getElementById('rqOfflineCsvImportInput');
             window.rqPendingCsvImportMode = mode === 'merge' ? 'merge' : 'replace';
-            if (input) input.click();
+            const input = document.getElementById('rqOfflineCsvImportInput');
+            if (!input) return;
+            if (!input.files?.length) {
+                input.click();
+                return;
+            }
+            window.previewOfflineCsvFile(input.files[0]);
+        };
+
+        window.resetOfflineCsvImport = function() {
+            window.rqPendingCsvFile = null;
+            window.rqPendingCsvImportMode = 'replace';
+            const input = document.getElementById('rqOfflineCsvImportInput');
+            if (input) input.value = '';
+            const box = document.getElementById('rqOfflineCsvImportStatus');
+            if (box) {
+                box.className = 'hidden';
+                box.innerHTML = '';
+            }
+            const action = document.getElementById('rqOfflineCsvImportAction');
+            if (action) action.classList.add('hidden');
+        };
+
+        window.previewOfflineCsvFile = async function(file) {
+            const box = document.getElementById('rqOfflineCsvImportStatus');
+            const action = document.getElementById('rqOfflineCsvImportAction');
+            if (!file) { window.resetOfflineCsvImport(); return; }
+            window.rqPendingCsvFile = file;
+            if (box) {
+                box.className = 'mt-3 rounded-xl border-2 border-sky-200 bg-sky-50 dark:bg-slate-900/70 dark:border-sky-800 p-4';
+                box.innerHTML = '<div class="flex items-center gap-2 font-black text-sky-800 dark:text-sky-300"><i class="fa-solid fa-spinner fa-spin"></i> Membaca file CSV...</div><div class="text-xs font-bold text-slate-600 dark:text-slate-400 mt-1">Mohon tunggu, sistem sedang memeriksa isi file.</div>';
+            }
+            if (action) action.classList.add('hidden');
+            try {
+                const text = await file.text();
+                const rows = window.parseOfflineCsv(text);
+                if (!rows.length || rows[0][0] !== 'Type' || rows[0][1] !== 'Key' || rows[0][2] !== 'Value') {
+                    throw new Error('Format CSV tidak dikenali. Gunakan CSV hasil Download Semua Data CSV.');
+                }
+                let formatOk = false, version = '';
+                const imported = {};
+                let importedSantri = null;
+                let targetInfo = null;
+                for (let i = 1; i < rows.length; i++) {
+                    const type = String(rows[i][0] ?? '').trim();
+                    const key = String(rows[i][1] ?? '').trim();
+                    const value = String(rows[i][2] ?? '');
+                    if (type === 'meta' && key === 'format') formatOk = value === 'rq-al-khansa-local-csv';
+                    else if (type === 'meta' && key === 'version') version = value;
+                    else if (type === 'localStorage' && key.startsWith('rq_')) {
+                        imported[key] = value;
+                        if (key === 'rq_target_hafalan_murojaah_v2') {
+                            try { targetInfo = JSON.parse(value); } catch (_) {}
+                        }
+                    } else if (type === 'santriList' && key === '__santriList') {
+                        try { importedSantri = JSON.parse(value); } catch (_) { throw new Error('Data master santri di CSV rusak.'); }
+                    }
+                }
+                if (!formatOk || !version) throw new Error('CSV bukan file data offline RQ Al-Khansa.');
+                if (!Object.keys(imported).length && !Array.isArray(importedSantri)) throw new Error('CSV tidak berisi data aplikasi.');
+                const targetH = targetInfo?.hafalan && typeof targetInfo.hafalan === 'object' ? Object.keys(targetInfo.hafalan).length : 0;
+                const targetM = targetInfo?.murojaah && typeof targetInfo.murojaah === 'object' ? Object.keys(targetInfo.murojaah).length : 0;
+                const mode = window.rqPendingCsvImportMode === 'merge' ? 'merge' : 'replace';
+                const modeText = mode === 'merge' ? 'GABUNGKAN' : 'GANTI';
+                if (box) {
+                    box.className = 'mt-3 rounded-xl border-2 border-emerald-300 bg-emerald-50 dark:bg-slate-900/70 dark:border-emerald-800 p-4';
+                    box.innerHTML = `
+                        <div class="flex items-center gap-2 font-black text-emerald-700 dark:text-emerald-300"><i class="fa-solid fa-circle-check"></i> File berhasil dibaca</div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3 text-xs">
+                            <div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5"><b>Nama file:</b><br>${String(file.name).replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]))}</div>
+                            <div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5"><b>Ukuran:</b><br>${(file.size/1024).toFixed(1)} KB</div>
+                            <div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5"><b>Baris data:</b><br>${Math.max(0, rows.length-1)}</div>
+                            <div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5"><b>Kunci aplikasi:</b><br>${Object.keys(imported).length}</div>
+                            <div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5"><b>Master santri:</b><br>${Array.isArray(importedSantri) ? importedSantri.length + ' santri' : 'Tidak ada'}</div>
+                            <div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5"><b>Target hafalan / murojaah:</b><br>${targetH} / ${targetM} santri</div>
+                        </div>
+                        <div class="mt-3 text-xs font-black text-slate-700 dark:text-slate-300">File valid untuk proses <span class="text-violet-700 dark:text-violet-300">${modeText}</span>.</div>`;
+                }
+                if (action) {
+                    action.className = 'mt-3 flex flex-col sm:flex-row gap-2';
+                    action.innerHTML = `<button type="button" onclick="window.confirmOfflineCsvImport()" class="flex-1 px-4 py-3 bg-${mode === 'merge' ? 'amber' : 'violet'}-600 hover:bg-${mode === 'merge' ? 'amber' : 'violet'}-700 text-white rounded-xl font-black text-sm shadow-md"><i class="fa-solid fa-${mode === 'merge' ? 'code-merge' : 'right-to-bracket'}"></i> Ya, ${modeText}</button><button type="button" onclick="window.resetOfflineCsvImport()" class="px-4 py-3 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl font-black text-sm"><i class="fa-solid fa-xmark"></i> Batal / Pilih File Lain</button>`;
+                }
+            } catch (e) {
+                window.rqPendingCsvFile = null;
+                if (box) {
+                    box.className = 'mt-3 rounded-xl border-2 border-rose-300 bg-rose-50 dark:bg-slate-900/70 dark:border-rose-800 p-4';
+                    box.innerHTML = `<div class="flex items-center gap-2 font-black text-rose-700 dark:text-rose-300"><i class="fa-solid fa-circle-xmark"></i> File gagal dibaca</div><div class="text-xs font-bold text-rose-700 dark:text-rose-300 mt-1">${String(e?.message || e).replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]))}</div>`;
+                }
+                if (action) action.classList.add('hidden');
+            }
+        };
+
+        window.confirmOfflineCsvImport = async function() {
+            const file = window.rqPendingCsvFile;
+            const mode = window.rqPendingCsvImportMode === 'merge' ? 'merge' : 'replace';
+            if (!file) return;
+            const label = mode === 'merge' ? 'menggabungkan' : 'mengganti';
+            const ok = confirm(`File sudah berhasil dibaca. Apakah Anda yakin ingin ${label} data aplikasi dengan file ini?\n\nFile: ${file.name}`);
+            if (!ok) return;
+            const box = document.getElementById('rqOfflineCsvImportStatus');
+            const action = document.getElementById('rqOfflineCsvImportAction');
+            if (box) box.innerHTML = '<div class="flex items-center gap-2 font-black text-sky-800 dark:text-sky-300"><i class="fa-solid fa-spinner fa-spin"></i> Memproses import...</div><div class="text-xs font-bold text-slate-600 dark:text-slate-400 mt-1">Jangan tutup halaman sampai selesai.</div>';
+            if (action) action.classList.add('hidden');
+            await window.importAllLocalDataFromCsv(file, mode, true);
         };
 
         // ============================================================
@@ -5703,15 +5810,24 @@
                         <p class="text-[11px] text-slate-600 dark:text-slate-400 font-bold">
                             <b>Ganti</b> mengganti data aplikasi dengan isi CSV. <b>Gabungkan</b> mempertahankan data yang ada lalu menggabungkannya dengan data dari CSV.
                         </p>
+                        <div class="rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-900/50 p-3.5 space-y-2.5">
+                            <label class="block text-xs font-black text-slate-700 dark:text-slate-300">Pilih file CSV</label>
+                            <div class="flex flex-col sm:flex-row gap-2">
+                                <input id="rqOfflineCsvImportInput" type="file" accept=".csv,text/csv" class="w-full min-w-0 px-3 py-2.5 bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold" onchange="window.previewOfflineCsvFile(this.files?.[0])">
+                                <button type="button" onclick="window.resetOfflineCsvImport()" class="shrink-0 px-4 py-2.5 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-white rounded-xl font-black text-xs"><i class="fa-solid fa-rotate-left"></i> Reset File</button>
+                            </div>
+                            <div class="text-[11px] text-slate-500 dark:text-slate-400 font-bold">Pilih file hasil <b>Download Semua Data CSV</b>. Setelah terbaca, hasil pemeriksaan akan tampil sebelum Anda memilih Ganti atau Gabungkan.</div>
+                        </div>
+                        <div id="rqOfflineCsvImportStatus" class="hidden"></div>
+                        <div id="rqOfflineCsvImportAction" class="hidden"></div>
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                            <button onclick="window.openOfflineCsvImport('replace')" class="w-full px-4 py-3 bg-violet-600 hover:bg-violet-700 text-white rounded-xl font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-md transition active:scale-95">
+                            <button onclick="window.rqPendingCsvImportMode='replace'; window.openOfflineCsvImport('replace')" class="w-full px-4 py-3 bg-violet-600 hover:bg-violet-700 text-white rounded-xl font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-md transition active:scale-95">
                                 <i class="fa-solid fa-file-arrow-up"></i> Import &amp; Ganti
                             </button>
-                            <button onclick="window.openOfflineCsvImport('merge')" class="w-full px-4 py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-md transition active:scale-95">
+                            <button onclick="window.rqPendingCsvImportMode='merge'; window.openOfflineCsvImport('merge')" class="w-full px-4 py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-md transition active:scale-95">
                                 <i class="fa-solid fa-code-merge"></i> Import &amp; Gabungkan
                             </button>
                         </div>
-                        <input id="rqOfflineCsvImportInput" type="file" accept=".csv,text/csv" class="hidden" onchange="window.importAllLocalDataFromCsv(this.files?.[0], window.rqPendingCsvImportMode || 'replace'); this.value=''">
                     </div>
 
                     <div class="text-[10px] text-slate-500 dark:text-slate-400 font-bold">

@@ -6308,19 +6308,40 @@
       <button type="button" id="rqDiagBtn"><i class="fa-solid fa-stethoscope"></i> Diagnosa Sistem</button>
       <button type="button" id="rqStorageCheckBtn"><i class="fa-solid fa-database"></i> Cek Storage</button>
     </div>
+    <style>
+#rqSafetyBackupBox .rq-safety-title{color:#0f172a}
+#rqSafetyBackupBox .rq-safety-desc,#rqSafetyBackupBox .rq-safety-help{color:#475569}
+#rqSafetyBackupBox .rq-safety-option{display:inline-flex;align-items:center;gap:7px;padding:7px 11px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;color:#0f172a;font-weight:900;cursor:pointer}
+#rqSafetyBackupBox .rq-safety-option input{width:18px;height:18px;accent-color:#0f766e;cursor:pointer}
+#rqSafetyBackupBox .rq-safety-option:has(input:checked){border-color:#0f766e;background:#ecfdf5;color:#065f46}
+html.dark #rqSafetyBackupBox{background:#0f172a !important;border-color:#334155 !important}
+html.dark #rqSafetyBackupBox .rq-safety-title{color:#f8fafc !important}
+html.dark #rqSafetyBackupBox .rq-safety-desc,html.dark #rqSafetyBackupBox .rq-safety-help{color:#cbd5e1 !important}
+html.dark #rqSafetyBackupBox .rq-safety-option{background:#1e293b;color:#f8fafc;border-color:#475569}
+html.dark #rqSafetyBackupBox .rq-safety-option:has(input:checked){background:#064e3b;color:#d1fae5;border-color:#10b981}
+html.dark #rqSafetyBackupBox #rqSafetyBackupInfo{color:#cbd5e1 !important}
+html.dark #rqSafetyBackupBox #rqSafetyBackupInfo b{color:#f8fafc !important}
+html.dark #rqSafetyBackupBox #rqSafetyBackupLocation{background:#064e3b !important;border-color:#047857 !important;color:#d1fae5 !important}
+html.dark #rqSafetyBackupBox #rqSafetyBackupLocation b{color:#ecfdf5 !important}
+</style>
     <div id="rqSafetyBackupBox" style="margin-top:10px;padding:16px;border:2px solid #bfdbfe;border-radius:16px;background:#f8fafc">
-      <div style="font-weight:900;font-size:15px;margin-bottom:6px"><i class="fa-solid fa-shield-halved"></i> Backup Pengaman Otomatis</div>
-      <div style="font-size:10px;color:#64748b;font-weight:700;margin-bottom:10px">Pengaturan khusus untuk backup pengaman sebelum Ganti, Gabungkan, Hapus, atau Reset yang membutuhkan pengaman.</div>
-      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">
-        <label style="display:flex;align-items:center;gap:8px;font-weight:800">
-          <input id="rqSafetyBackupToggle" type="checkbox" checked style="width:20px;height:20px">
-          <span>ON / OFF</span>
+      <div class="rq-safety-title" style="font-weight:900;font-size:15px;margin-bottom:6px"><i class="fa-solid fa-shield-halved"></i> Backup Pengaman Otomatis</div>
+      <div class="rq-safety-desc" style="font-size:10px;font-weight:700;margin-bottom:10px">Pengaturan khusus untuk backup pengaman sebelum Ganti, Gabungkan, Hapus, atau Reset yang membutuhkan pengaman.</div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+        <label class="rq-safety-option">
+          <input id="rqSafetyBackupOn" name="rqSafetyBackupMode" type="radio" value="on">
+          <span>ON</span>
+        </label>
+        <label class="rq-safety-option">
+          <input id="rqSafetyBackupOff" name="rqSafetyBackupMode" type="radio" value="off">
+          <span>OFF</span>
         </label>
         <button type="button" id="rqSafetyBackupFolderBtn" style="padding:8px 11px;border-radius:10px;background:#0f766e;color:#fff;font-weight:900"><i class="fa-solid fa-folder-open"></i> Pilih Folder Simpan</button>
         <button type="button" id="rqSafetyBackupResetFolderBtn" style="padding:8px 11px;border-radius:10px;background:#e2e8f0;color:#334155;font-weight:900"><i class="fa-solid fa-rotate-left"></i> Reset Folder</button>
       </div>
-      <div id="rqSafetyBackupInfo" style="font-size:11px;line-height:1.5;color:#475569">Memuat pengaturan backup...</div>
-      <div style="margin-top:7px;font-size:10px;color:#64748b">Jika ON, backup pengaman <b>tidak akan mengunduh sendiri</b> dan <b>tidak akan meminta folder secara tiba-tiba</b>. Pilih folder terlebih dahulu. Backup disimpan sebagai file JSON di folder tersebut. Jika OFF, backup pengaman tidak dibuat.</div>
+      <div id="rqSafetyBackupInfo" style="font-size:11px;line-height:1.6;color:#475569">Memuat pengaturan backup...</div>
+      <div id="rqSafetyBackupLocation" style="margin-top:8px;padding:9px 11px;border-radius:10px;background:#ecfdf5;border:1px solid #a7f3d0;font-size:10px;line-height:1.55;color:#065f46">Lokasi penyimpanan: belum dipilih.</div>
+      <div class="rq-safety-help" style="margin-top:7px;font-size:10px">Jika ON, backup pengaman <b>disimpan langsung ke folder yang Anda pilih</b>, bukan ke folder Downloads. Nama folder akan ditampilkan di sini. Browser tidak mengizinkan aplikasi menampilkan alamat/path lengkap folder demi keamanan, tetapi file JSON benar-benar ditulis ke folder yang Anda pilih. Jika OFF, backup pengaman tidak dibuat.</div>
     </div>
     <input id="rqOfflineRestoreInput" type="file" accept="application/json,.json">
     <div id="rqOfflineHealth" class="rq-offline-health">Database lokal siap diperiksa.</div>
@@ -6403,10 +6424,12 @@
   // Folder dipilih pengguna melalui File System Access API dan
   // handle folder disimpan di IndexedDB agar dapat digunakan lagi.
   // ============================================================
-  const safetyToggle=document.getElementById('rqSafetyBackupToggle');
+  const safetyOn=document.getElementById('rqSafetyBackupOn');
+  const safetyOff=document.getElementById('rqSafetyBackupOff');
   const safetyFolderBtn=document.getElementById('rqSafetyBackupFolderBtn');
   const safetyResetFolderBtn=document.getElementById('rqSafetyBackupResetFolderBtn');
   const safetyInfo=document.getElementById('rqSafetyBackupInfo');
+  const safetyLocation=document.getElementById('rqSafetyBackupLocation');
   const SAFETY_DB='rq-al-khansa-safety-settings';
   const SAFETY_STORE='settings';
   const SAFETY_KEY='folderHandle';
@@ -6453,17 +6476,26 @@
   function safetySetOn(on){ localStorage.setItem('rq_safety_backup_enabled',on?'1':'0'); updateSafetyUi(); }
   function updateSafetyUi(folderName){
     const on=safetyIsOn();
-    if(safetyToggle){ safetyToggle.checked=on; safetyToggle.setAttribute('aria-checked',on?'true':'false'); }
+    if(safetyOn) safetyOn.checked=on;
+    if(safetyOff) safetyOff.checked=!on;
     // Folder boleh dipilih/di-reset baik saat ON maupun OFF.
     // Jika OFF, backup tidak berjalan; tetapi pengguna tetap harus bisa
     // menyiapkan folder terlebih dahulu sebelum menyalakan backup.
     if(safetyFolderBtn) safetyFolderBtn.disabled=false;
     if(safetyResetFolderBtn) safetyResetFolderBtn.disabled=false;
+    const cleanName=folderName?String(folderName).replace(/[<>&"']/g,''):'';
     if(safetyInfo){
       if(!safetySupported()) safetyInfo.innerHTML='<b>Backup Pengaman: '+(on?'ON':'OFF')+'</b><br>Browser ini belum mendukung pemilihan folder otomatis. Gunakan Chrome/Edge versi terbaru.';
       else if(!on) safetyInfo.innerHTML='<b>Backup Pengaman: OFF</b><br>Backup pengaman otomatis tidak akan dibuat.';
-      else if(folderName) safetyInfo.innerHTML='<b>Backup Pengaman: ON</b><br>Folder penyimpanan: <b>'+String(folderName).replace(/[<>&"']/g,'')+'</b>';
+      else if(cleanName) safetyInfo.innerHTML='<b>Backup Pengaman: ON</b><br>Nama folder: <b>'+cleanName+'</b>';
       else safetyInfo.innerHTML='<b>Backup Pengaman: ON</b><br><span style="color:#b45309">Folder belum dipilih. Pilih folder sebelum melakukan Ganti/Gabungkan/Reset.</span>';
+    }
+    if(safetyLocation){
+      if(cleanName){
+        safetyLocation.innerHTML='<b>📁 Lokasi penyimpanan:</b> Perangkat ini → folder <b>'+cleanName+'</b><br><span>File backup disimpan langsung di folder tersebut, bukan di Downloads.</span>';
+      }else{
+        safetyLocation.innerHTML='<b>📁 Lokasi penyimpanan:</b> belum dipilih.<br><span>Pilih <b>Pilih Folder Simpan</b> untuk menentukan tempat file backup.</span>';
+      }
     }
   }
   async function getSafetyFolder(){
@@ -6519,7 +6551,8 @@
     return await writeSafetyBackupToFolder(reason);
   };
 
-  safetyToggle?.addEventListener('change',()=>{ safetySetOn(!!safetyToggle.checked); });
+  safetyOn?.addEventListener('change',()=>{ if(safetyOn.checked) safetySetOn(true); });
+  safetyOff?.addEventListener('change',()=>{ if(safetyOff.checked) safetySetOn(false); });
   safetyFolderBtn?.addEventListener('click',()=>chooseSafetyFolder());
   safetyResetFolderBtn?.addEventListener('click',async()=>{ try{await safetyDbDelete();updateSafetyUi();notify('Folder backup pengaman direset.','success');}catch(e){notify('Gagal mereset folder: '+(e?.message||e),'error')} });
   (async()=>{ try{const h=await safetyDbGet();updateSafetyUi(h?.name||'');}catch(_){updateSafetyUi('');} })();

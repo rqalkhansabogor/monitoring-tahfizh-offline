@@ -174,35 +174,6 @@
         }
 
 
-
-        /* HP: tombol nama santri dan Buka Form dibuat lebih besar agar mudah disentuh.
-           Hanya visual/responsif, tanpa mengubah fungsi atau data. */
-        @media (max-width: 767px) {
-            #santriKotakContainer .santri-picker-btn {
-                min-height: 64px !important;
-                padding: 10px 12px !important;
-                font-size: 14px !important;
-                line-height: 1.25 !important;
-                border-radius: 14px !important;
-            }
-            #santriKotakContainer .santri-picker-btn span:first-child {
-                font-size: 14px !important;
-                line-height: 1.3 !important;
-            }
-            #santriKotakContainer .santri-picker-btn span:last-child {
-                font-size: 11px !important;
-                margin-top: 4px !important;
-            }
-            #santriGridContainer .mobile-form-open-btn {
-                width: 100% !important;
-                min-height: 58px !important;
-                padding: 13px 16px !important;
-                font-size: 15px !important;
-                line-height: 1.2 !important;
-                border-radius: 14px !important;
-            }
-        }
-
         /* Dashboard Santri: tetap tersedia sebagai menu utama. */
         #btnTab-dashboard { display: inline-flex !important; visibility: visible !important; }
 </style>
@@ -2017,7 +1988,7 @@
                         ? 'bg-emerald-600 text-white border-emerald-700 ring-2 ring-amber-400'
                         : (isFemale ? 'bg-pink-100 hover:bg-pink-200 border-pink-300 text-pink-950 dark:bg-pink-950/60 dark:text-pink-200 dark:border-pink-800' : 'bg-sky-100 hover:bg-sky-200 border-sky-300 text-sky-950 dark:bg-sky-950/60 dark:text-sky-200 dark:border-sky-800');
                     return `
-                        <button type="button" onclick='window.quickSelectSantri(${JSON.stringify(selected.name)})' class="santri-picker-btn w-full p-2.5 ${cardBg} border-2 rounded-xl shadow-xs font-bold text-[10px] flex flex-col items-center justify-center transition text-center min-h-[44px]">
+                        <button type="button" onclick='window.quickSelectSantri(${JSON.stringify(selected.name)})' class="w-full p-2.5 ${cardBg} border-2 rounded-xl shadow-xs font-bold text-[10px] flex flex-col items-center justify-center transition text-center min-h-[44px]">
                             <span class="leading-snug break-words">${selected.name}</span>
                             <span class="mt-0.5 text-[9px] font-black opacity-70">${selected.class || 'Tanpa Kelas'}</span>
                         </button>`;
@@ -2144,19 +2115,19 @@
                                         <tr class="align-top bg-white dark:bg-slate-800">
                                             <td class="p-3 border-t border-slate-200 dark:border-slate-700">
                                                 <div class="font-black ${isTodayBac ? 'text-emerald-600' : 'text-slate-500'}">${isTodayBac ? 'Sudah input hari ini' : 'Belum di input'}</div>
-                                                <button type="button" onclick='window.toggleCardSection(${JSON.stringify(s.name)}, "bacaan")' class="mobile-form-open-btn mt-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black">${isBacaanOpen ? 'Tutup Form' : 'Buka Form'}</button>
+                                                <button type="button" onclick='window.toggleCardSection(${JSON.stringify(s.name)}, "bacaan")' class="mt-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black">${isBacaanOpen ? 'Tutup Form' : 'Buka Form'}</button>
                                             </td>
                                             <td class="p-3 border-t border-slate-200 dark:border-slate-700">
                                                 <div class="font-black ${isTodayHaf ? 'text-rose-600' : 'text-slate-500'}">${isTodayHaf ? 'Sudah input hari ini' : 'Belum di input'}</div>
-                                                <button type="button" onclick='window.toggleCardSection(${JSON.stringify(s.name)}, "hafalan")' class="mobile-form-open-btn mt-2 px-3 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-black">${isHafalanOpen ? 'Tutup Form' : 'Buka Form'}</button>
+                                                <button type="button" onclick='window.toggleCardSection(${JSON.stringify(s.name)}, "hafalan")' class="mt-2 px-3 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-black">${isHafalanOpen ? 'Tutup Form' : 'Buka Form'}</button>
                                             </td>
                                             <td class="p-3 border-t border-slate-200 dark:border-slate-700">
                                                 <div class="font-black ${isTodayMur ? 'text-purple-600' : 'text-slate-500'}">${isTodayMur ? 'Sudah input hari ini' : 'Belum di input'}</div>
-                                                <button type="button" onclick='window.toggleCardSection(${JSON.stringify(s.name)}, "murojaah")' class="mobile-form-open-btn mt-2 px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-black">${isMurojaahOpen ? 'Tutup Form' : 'Buka Form'}</button>
+                                                <button type="button" onclick='window.toggleCardSection(${JSON.stringify(s.name)}, "murojaah")' class="mt-2 px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-black">${isMurojaahOpen ? 'Tutup Form' : 'Buka Form'}</button>
                                             </td>
                                             <td class="p-3 border-t border-slate-200 dark:border-slate-700">
                                                 <div class="font-black ${isTodayTug ? 'text-amber-600' : 'text-slate-500'}">${isTodayTug ? 'Sudah input hari ini' : 'Belum di input'}</div>
-                                                <button type="button" onclick='window.toggleCardSection(${JSON.stringify(s.name)}, "tugas")' class="mobile-form-open-btn mt-2 px-3 py-2 bg-amber-700 hover:bg-amber-800 text-white rounded-xl font-black">${isTugasOpen ? 'Tutup Form' : 'Buka Form'}</button>
+                                                <button type="button" onclick='window.toggleCardSection(${JSON.stringify(s.name)}, "tugas")' class="mt-2 px-3 py-2 bg-amber-700 hover:bg-amber-800 text-white rounded-xl font-black">${isTugasOpen ? 'Tutup Form' : 'Buka Form'}</button>
                                             </td>
                                         </tr>
                                     </tbody>
@@ -2256,8 +2227,8 @@
                                         <div class="p-3 rounded-2xl border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/40 dark:bg-emerald-950/20 space-y-3">
                                             <div class="font-black text-[11px] text-emerald-700 dark:text-emerald-300">Target Jangka Pendek</div>
                                             <div class="grid grid-cols-1 gap-3">
-                                                <label class="text-xs sm:text-sm font-black text-slate-500">Juz<input id="inputTargetHafalanJangkaPendekJuz_${s.name}" type="text" placeholder="30" class="mt-1 w-full p-4 rounded-2xl border-2 bg-white dark:bg-slate-900 text-sm sm:text-base font-black min-h-[60px]"></label>
-                                                <label class="text-xs sm:text-sm font-black text-slate-500">Nama Surat<select id="inputTargetHafalanJangkaPendekSurat_${s.name}" onchange="window.onInlineTargetSurahChange('hafalan','${s.name}','jangkaPendek')" class="mt-1 w-full p-4 rounded-2xl border-2 bg-white dark:bg-slate-900 text-sm sm:text-base font-black min-h-[60px]"><option value="">-- Pilih Surat --</option>${window.surahList.map(x => `<option value="${x.name}">${x.no}. ${x.name} (${x.ayat} ayat)</option>`).join('')}</select></label>
+                                                <label class="text-xs sm:text-sm font-black text-slate-500">Juz Otomatis<input id="inputTargetHafalanJangkaPendekJuz_${s.name}" type="text" placeholder="Otomatis dari surat/ayat" readonly class="rq-target-juz-auto mt-1 w-full p-4 rounded-2xl border-2 border-emerald-300 dark:border-emerald-700 text-sm sm:text-base font-black min-h-[60px]"></label>
+                                                <label class="text-xs sm:text-sm font-black text-slate-500">Nama Surat — Otomatis<select id="inputTargetHafalanJangkaPendekSurat_${s.name}" onchange="window.onInlineTargetSurahChange('hafalan','${s.name}','jangkaPendek')" class="mt-1 w-full p-4 rounded-2xl border-2 bg-white dark:bg-slate-900 text-sm sm:text-base font-black min-h-[60px]"><option value="">-- Pilih Surat --</option>${window.surahList.map(x => `<option value="${x.name}">${x.no}. ${x.name} (${x.ayat} ayat)</option>`).join('')}</select></label><div class="rq-target-surah-manual"><label class="text-xs sm:text-sm font-black text-slate-500">Nama Surat — Manual / Cari<input type="text" id="inputTargetHafalanJangkaPendekSuratSearch_${s.name}" placeholder="Ketik nama surat..." autocomplete="off" class="mt-1 w-full p-4 rounded-2xl border-2 bg-white dark:bg-slate-900 text-sm sm:text-base font-black min-h-[60px]" oninput="window.searchInlineTargetSurah('hafalan','${s.name}','jangkaPendek',this.value)" onfocus="window.searchInlineTargetSurah('hafalan','${s.name}','jangkaPendek',this.value)"><div id="inputTargetHafalanJangkaPendekSuratSearch_${s.name}_dropdown" class="hidden mt-1 max-h-56 overflow-y-auto bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-700 rounded-xl shadow-xl"></div></label></div>
                                                 <label class="text-xs sm:text-sm font-black text-slate-500">Target ayat<input id="inputTargetHafalanJangkaPendekAyat_${s.name}" type="number" min="1" inputmode="numeric" placeholder="Jumlah ayat" class="mt-1 w-full p-4 rounded-2xl border-2 bg-white dark:bg-slate-900 text-sm sm:text-base font-black min-h-[60px]"></label>
                                                 <div class="grid grid-cols-1 gap-3"><label class="text-xs sm:text-sm font-black text-slate-500">Tanggal mulai<input id="inputTargetHafalanJangkaPendekMulai_${s.name}" type="date" class="mt-1 w-full p-4 rounded-2xl border-2 bg-white dark:bg-slate-900 text-sm sm:text-base font-black min-h-[60px]"></label><label class="text-xs sm:text-sm font-black text-slate-500">Tanggal selesai<input id="inputTargetHafalanJangkaPendekSelesai_${s.name}" type="date" class="mt-1 w-full p-4 rounded-2xl border-2 bg-white dark:bg-slate-900 text-sm sm:text-base font-black min-h-[60px]"></label></div>
                                             </div>
@@ -2268,8 +2239,8 @@
                                         <div class="p-3 rounded-2xl border border-sky-200 dark:border-sky-900/50 bg-sky-50/40 dark:bg-sky-950/20 space-y-3">
                                             <div class="font-black text-[11px] text-sky-700 dark:text-sky-300">Target Yang Akan Datang</div>
                                             <div class="grid grid-cols-1 gap-3">
-                                                <label class="text-xs sm:text-sm font-black text-slate-500">Juz<input id="inputTargetHafalanAkanDatangJuz_${s.name}" type="text" placeholder="30" class="mt-1 w-full p-4 rounded-2xl border-2 bg-white dark:bg-slate-900 text-sm sm:text-base font-black min-h-[60px]"></label>
-                                                <label class="text-xs sm:text-sm font-black text-slate-500">Nama Surat<select id="inputTargetHafalanAkanDatangSurat_${s.name}" onchange="window.onInlineTargetSurahChange('hafalan','${s.name}','akanDatang')" class="mt-1 w-full p-4 rounded-2xl border-2 bg-white dark:bg-slate-900 text-sm sm:text-base font-black min-h-[60px]"><option value="">-- Pilih Surat --</option>${window.surahList.map(x => `<option value="${x.name}">${x.no}. ${x.name} (${x.ayat} ayat)</option>`).join('')}</select></label>
+                                                <label class="text-xs sm:text-sm font-black text-slate-500">Juz Otomatis<input id="inputTargetHafalanAkanDatangJuz_${s.name}" type="text" placeholder="Otomatis dari surat/ayat" readonly class="rq-target-juz-auto mt-1 w-full p-4 rounded-2xl border-2 border-emerald-300 dark:border-emerald-700 text-sm sm:text-base font-black min-h-[60px]"></label>
+                                                <label class="text-xs sm:text-sm font-black text-slate-500">Nama Surat — Otomatis<select id="inputTargetHafalanAkanDatangSurat_${s.name}" onchange="window.onInlineTargetSurahChange('hafalan','${s.name}','akanDatang')" class="mt-1 w-full p-4 rounded-2xl border-2 bg-white dark:bg-slate-900 text-sm sm:text-base font-black min-h-[60px]"><option value="">-- Pilih Surat --</option>${window.surahList.map(x => `<option value="${x.name}">${x.no}. ${x.name} (${x.ayat} ayat)</option>`).join('')}</select></label><div class="rq-target-surah-manual"><label class="text-xs sm:text-sm font-black text-slate-500">Nama Surat — Manual / Cari<input type="text" id="inputTargetHafalanAkanDatangSuratSearch_${s.name}" placeholder="Ketik nama surat..." autocomplete="off" class="mt-1 w-full p-4 rounded-2xl border-2 bg-white dark:bg-slate-900 text-sm sm:text-base font-black min-h-[60px]" oninput="window.searchInlineTargetSurah('hafalan','${s.name}','akanDatang',this.value)" onfocus="window.searchInlineTargetSurah('hafalan','${s.name}','akanDatang',this.value)"><div id="inputTargetHafalanAkanDatangSuratSearch_${s.name}_dropdown" class="hidden mt-1 max-h-56 overflow-y-auto bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-700 rounded-xl shadow-xl"></div></label></div>
                                                 <label class="text-xs sm:text-sm font-black text-slate-500">Target ayat<input id="inputTargetHafalanAkanDatangAyat_${s.name}" type="number" min="1" inputmode="numeric" placeholder="Jumlah ayat" class="mt-1 w-full p-4 rounded-2xl border-2 bg-white dark:bg-slate-900 text-sm sm:text-base font-black min-h-[60px]"></label>
                                                 <div class="grid grid-cols-1 gap-3"><label class="text-xs sm:text-sm font-black text-slate-500">Tanggal mulai<input id="inputTargetHafalanAkanDatangMulai_${s.name}" type="date" class="mt-1 w-full p-4 rounded-2xl border-2 bg-white dark:bg-slate-900 text-sm sm:text-base font-black min-h-[60px]"></label><label class="text-xs sm:text-sm font-black text-slate-500">Tanggal selesai<input id="inputTargetHafalanAkanDatangSelesai_${s.name}" type="date" class="mt-1 w-full p-4 rounded-2xl border-2 bg-white dark:bg-slate-900 text-sm sm:text-base font-black min-h-[60px]"></label></div>
                                             </div>
@@ -2350,8 +2321,8 @@
                                             <span class="text-[9px] font-black text-slate-400">Untuk santri ini</span>
                                         </div>
                                         <div class="grid grid-cols-1 gap-3">
-                                            <label class="text-xs sm:text-sm font-black text-slate-500">Juz<input id="inputTargetMurojaahJuz_${s.name}" type="text" placeholder="30" class="mt-1 w-full p-4 rounded-2xl border-2 bg-white dark:bg-slate-900 text-sm sm:text-base font-black min-h-[60px]"></label>
-                                            <label class="text-xs sm:text-sm font-black text-slate-500">Nama Surat<select id="inputTargetMurojaahSurat_${s.name}" onchange="window.onInlineTargetSurahChange('murojaah', '${s.name}')" class="mt-1 w-full p-4 rounded-2xl border-2 bg-white dark:bg-slate-900 text-sm sm:text-base font-black min-h-[60px]"><option value="">-- Pilih Surat --</option>${window.surahList.map(x => `<option value="${x.name}">${x.no}. ${x.name} (${x.ayat} ayat)</option>`).join('')}</select></label>
+                                            <label class="text-xs sm:text-sm font-black text-slate-500">Juz Otomatis<input id="inputTargetMurojaahJuz_${s.name}" type="text" placeholder="Otomatis dari surat/ayat" readonly class="rq-target-juz-auto mt-1 w-full p-4 rounded-2xl border-2 border-emerald-300 dark:border-emerald-700 text-sm sm:text-base font-black min-h-[60px]"></label>
+                                            <label class="text-xs sm:text-sm font-black text-slate-500">Nama Surat — Otomatis<select id="inputTargetMurojaahSurat_${s.name}" onchange="window.onInlineTargetSurahChange('murojaah','${s.name}')" class="mt-1 w-full p-4 rounded-2xl border-2 bg-white dark:bg-slate-900 text-sm sm:text-base font-black min-h-[60px]"><option value="">-- Pilih Surat --</option>${window.surahList.map(x => `<option value="${x.name}">${x.no}. ${x.name} (${x.ayat} ayat)</option>`).join('')}</select></label><div class="rq-target-surah-manual"><label class="text-xs sm:text-sm font-black text-slate-500">Nama Surat — Manual / Cari<input type="text" id="inputTargetMurojaahSuratSearch_${s.name}" placeholder="Ketik nama surat..." autocomplete="off" class="mt-1 w-full p-4 rounded-2xl border-2 bg-white dark:bg-slate-900 text-sm sm:text-base font-black min-h-[60px]" oninput="window.searchInlineTargetSurah('murojaah','${s.name}','legacy',this.value)" onfocus="window.searchInlineTargetSurah('murojaah','${s.name}','legacy',this.value)"><div id="inputTargetMurojaahSuratSearch_${s.name}_dropdown" class="hidden mt-1 max-h-56 overflow-y-auto bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-700 rounded-xl shadow-xl"></div></label></div>
                                             <label class="text-xs sm:text-sm font-black text-slate-500">Target ayat<input id="inputTargetMurojaahAyat_${s.name}" type="number" min="1" inputmode="numeric" placeholder="Jumlah ayat" class="mt-1 w-full p-4 rounded-2xl border-2 bg-white dark:bg-slate-900 text-sm sm:text-base font-black min-h-[60px]"></label>
                                             <label class="text-xs sm:text-sm font-black text-slate-500">Target setoran<input id="inputTargetMurojaahKali_${s.name}" type="number" min="1" inputmode="numeric" placeholder="Jumlah setoran" class="mt-1 w-full p-4 rounded-2xl border-2 bg-white dark:bg-slate-900 text-sm sm:text-base font-black min-h-[60px]"></label>
                                             <div class="grid grid-cols-1 gap-3"><label class="text-xs sm:text-sm font-black text-slate-500">Tanggal mulai<input id="inputTargetMurojaahMulai_${s.name}" type="date" class="mt-1 w-full p-4 rounded-2xl border-2 bg-white dark:bg-slate-900 text-sm sm:text-base font-black min-h-[60px]"></label><label class="text-xs sm:text-sm font-black text-slate-500">Tanggal selesai<input id="inputTargetMurojaahSelesai_${s.name}" type="date" class="mt-1 w-full p-4 rounded-2xl border-2 bg-white dark:bg-slate-900 text-sm sm:text-base font-black min-h-[60px]"></label></div>
@@ -5520,6 +5491,14 @@
 [id^="inputTargetHafalanJangkaPendekJuz_"] ~ *,
 [id^="inputTargetHafalanAkanDatangJuz_"] ~ * { box-sizing:border-box; }
 </style>
+
+<style id="rqTargetSurahDualCss">
+.rq-target-surah-wrap{position:relative}
+.rq-target-surah-manual{margin-top:10px}
+.rq-target-surah-manual input{width:100%}
+.rq-target-juz-auto{background:#ecfdf5!important;color:#065f46!important;font-weight:900!important}
+.dark .rq-target-juz-auto{background:#052e2b!important;color:#a7f3d0!important}
+</style>
 </head>
 <body class="bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 min-h-full flex flex-col antialiased transition-colors duration-200">
     <div id="toastContainer" class="fixed top-4 right-4 z-[20000] space-y-2 w-[min(92vw,420px)] pointer-events-none"></div>
@@ -6988,36 +6967,10 @@ html.dark #rqSafetyBackupBox #rqSafetyBackupLocation b{color:#ecfdf5 !important}
   function calcTarget(name,t){if(!t)return {real:0,target:0,pct:0,rows:[],completeDate:'',lastAyat:0};const q=window.rqTargetEngine?.calc('hafalan',name,t)||{};return {real:Number(q.ayatCount)||0,target:Number(q.ayatTarget)||0,pct:Number(q.pct)||0,rows:q.rows||[],completeDate:q.completeDate||'',lastAyat:Number(q.lastAyat)||0};}
   function statusResult(t,q){if(!t)return {status:'Belum Mulai',result:'Belum dinilai'};const today=dkey(new Date()),mulai=dkey(t.mulai),selesai=dkey(t.selesai);if(today<mulai)return {status:'Belum Mulai',result:'Belum dinilai'};if(q.pct>=100)return {status:'Selesai',result:'Berhasil'};if(today>selesai)return {status:'Terlewat',result:'Tidak Berhasil'};return {status:'Sedang Berjalan',result:'Belum dinilai'};}
   function fmtDate(v){const d=dkey(v);if(!d)return '-';const [y,m,day]=d.split('-');return `${day}-${m}-${y}`;}
-  function targetText(name){
-    const db=targetDB(),d=db.hafalan?.[name]||{};
-    const legacy=d.ayat&&!d.jangkaPendek&&!d.akanDatang?d:null;
-    const short=d.jangkaPendek||legacy||null;
-    const future=d.akanDatang||null;
-    const valid=t=>!!(t&&String(t.surat||'').trim()&&Number(t.ayat)>0&&String(t.mulai||'').trim()&&String(t.selesai||'').trim());
-    const fmtPeriode=(mulai,selesai)=>{
-      if(!mulai||!selesai)return '-';
-      const d1=new Date(`${mulai}T00:00:00`),d2=new Date(`${selesai}T00:00:00`);
-      const hari=Math.max(0,Math.round((d2-d1)/86400000));
-      const f=v=>{const d=new Date(`${v}T00:00:00`),m=['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];return `${d.getDate()} ${m[d.getMonth()]}`};
-      return `${f(mulai)} s.d ${f(selesai)} ( ${hari} Hari )`;
-    };
-    const blocks=[];
-    const block=(label,t)=>{
-      if(!valid(t))return;
-      const q=calcTarget(name,t);
-      const desc=[t.juz?`Juz ${t.juz}`:'',t.surat||''].filter(Boolean).join(' · ');
-      blocks.push([
-        `• *${label}:* ${desc}`,
-        `• *Target Sampai ayat ke :* ${q.target||0}`,
-        `• *Realisasi sudah sampai ayat ke :* ${q.lastAyat||0}`,
-        `• *Progress:* ${q.pct||0}%`,
-        `• *Periode:*  ${fmtPeriode(t.mulai,t.selesai)}`
-      ].join('\n'));
-    };
-    block('Target Saat ini',short);
-    block('Target Yang Akan Datang',future);
-    return blocks.length?`Nama Santri: ${name}\n🎯 *Target & Perkembangan:*\n${blocks.join('\n\n')}`:`Nama Santri: ${name}`;
-  }
+  function targetText(name){const db=targetDB(),d=db.hafalan?.[name]||{};let legacy=d.ayat&&!d.jangkaPendek&&!d.akanDatang?d:null;const short=d.jangkaPendek||legacy||null,future=d.akanDatang||null;let out=`LAPORAN TARGET HAFALAN\nNama: ${name}\n\n`;
+    const block=(label,t)=>{if(!t)return `${label}\nBelum ada target.\n`;const q=calcTarget(name,t),sr=statusResult(t,q);let s=`${label}\nSurat: ${t.surat||'-'}\nJuz: ${t.juz||'-'}\nTarget: ${q.target} ayat\nRealisasi: ${q.real}/${q.target} ayat
+Sampai ayat: ${q.lastAyat||0}\nProgress: ${q.pct}%\nPeriode: ${fmtDate(t.mulai)} s.d. ${fmtDate(t.selesai)}\nStatus: ${sr.status}\nHasil: ${sr.result}`;if(q.completeDate)s+=`\nTuntas: ${fmtDate(q.completeDate)}`;return s+'\n';};
+    out+=block('TARGET JANGKA PENDEK',short)+'\n'+block('TARGET YANG AKAN DATANG',future);return out.trim();}
   window.renderTargetReport=function(){const sel=document.getElementById('targetReportClassFilter'),grid=document.getElementById('targetReportSantriGrid'),ta=document.getElementById('targetReportPreview');if(!sel||!grid||!ta)return;if(!sel.options.length)sel.innerHTML=classes.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');sel.value=window.targetReportClass||classes[0]||'';const list=(window.santriList||[]).filter(s=>s.class===window.targetReportClass);if(!window.selectedTargetReportSantri||!list.some(s=>s.name===window.selectedTargetReportSantri))window.selectedTargetReportSantri=list[0]?.name||'';grid.innerHTML=list.length?list.map(s=>`<button type="button" onclick='window.selectTargetReportSantri(${JSON.stringify(s.name)})' class="p-3 rounded-2xl border-2 font-black text-xs sm:text-sm ${s.name===window.selectedTargetReportSantri?'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/40':'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800'}">${esc(s.name)}</button>`).join(''):'<div class="text-xs text-slate-400 font-bold col-span-full">Tidak ada santri pada kelas ini.</div>';ta.value=window.selectedTargetReportSantri?targetText(window.selectedTargetReportSantri):'Pilih santri untuk melihat laporan target.';}
   window.filterTargetReportClass=function(cls){window.targetReportClass=cls;window.selectedTargetReportSantri='';window.renderTargetReport();};
   window.selectTargetReportSantri=function(name){window.selectedTargetReportSantri=name;window.renderTargetReport();};
@@ -7028,5 +6981,115 @@ html.dark #rqSafetyBackupBox #rqSafetyBackupLocation b{color:#ecfdf5 !important}
   document.addEventListener('DOMContentLoaded',()=>{setTimeout(()=>{const sel=document.getElementById('targetReportClassFilter');if(sel&&!sel.options.length){sel.innerHTML=classes.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');sel.value=window.targetReportClass||classes[0]||'';}},300);});
 })();
 </script>
+<script>
+(function(){
+  'use strict';
+  // Tambahan khusus Input Target: pencarian manual + Juz otomatis.
+  // Tidak mengubah struktur database atau mesin perhitungan target.
+  const JUZ_RANGES=[
+    [1,1,1,141],[1,2,142,252],[2,2,253,92],[3,3,93,23],[4,4,24,147],
+    [4,5,148,82],[5,6,83,110],[6,7,111,87],[7,8,88,40],[8,9,41,92],
+    [9,11,93,5],[11,12,6,52],[12,14,53,52],[15,16,1,128],[17,18,1,74],
+    [18,20,75,135],[21,22,1,78],[23,25,1,20],[25,27,21,55],[27,29,56,45],
+    [29,33,46,30],[33,36,31,27],[36,39,28,31],[39,41,32,46],[41,45,47,37],
+    [46,51,1,30],[51,57,31,29],[58,66,1,12],[67,77,1,50],[78,114,1,6]
+  ];
+  // Mapping batas di atas mengikuti pembagian juz standar; untuk surah yang
+  // melintasi juz, Juz ditentukan dari nomor surat + ayat target.
+  function juzFor(no,ayah){
+    no=Number(no); ayah=Number(ayah)||1;
+    const hits=[];
+    for(let j=1;j<=30;j++){
+      const r=JUZ_RANGES[j-1];
+      // Range tabel diringkas berdasarkan titik awal/akhir juz.
+      // Gunakan batas resmi per juz dari data Jakarta/Quran Foundation.
+      if(!r) continue;
+    }
+    // Batas awal setiap juz (surah, ayat), standar 30 juz.
+    const starts=[[1,1],[2,142],[2,253],[3,93],[4,24],[4,148],[5,83],[6,111],[7,88],[8,41],[9,93],[11,6],[12,53],[15,1],[17,1],[18,75],[21,1],[23,1],[25,21],[27,56],[29,46],[33,31],[36,28],[39,32],[41,47],[46,1],[51,31],[58,1],[67,1],[78,1]];
+    let found=1;
+    for(let j=0;j<starts.length;j++){
+      const [sn,sa]=starts[j];
+      if(no>sn || (no===sn && ayah>=sa)) found=j+1;
+    }
+    return found;
+  }
+  function esc(v){return String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');}
+  function parts(type,name,slot){
+    const p=type==='hafalan'?'Hafalan':'Murojaah';
+    const suf=type==='hafalan'?(slot==='jangkaPendek'?'JangkaPendek':slot==='akanDatang'?'AkanDatang':''):'';
+    const base=`inputTarget${p}${suf}`;
+    return {s:`${base}Surat_${name}`,j:`${base}Juz_${name}`,a:`${base}Ayat_${name}`,q:`${base}SuratSearch_${name}`,d:`${base}SuratSearch_${name}_dropdown`};
+  }
+  function findSurah(value){
+    const raw=String(value||'').trim().toLowerCase();
+    return (window.surahList||[]).find(x=>String(x?.name||'').trim().toLowerCase()===raw) ||
+      (window.surahList||[]).find(x=>String(x?.name||'').trim().toLowerCase().includes(raw) && raw.length>=2);
+  }
+  function setJuz(type,name,slot){
+    const x=parts(type,name,slot),s=document.getElementById(x.s),j=document.getElementById(x.j),a=document.getElementById(x.a);
+    if(!s||!j) return;
+    const q=findSurah(s.value);
+    if(!q){j.value='';return;}
+    const ay=Number(a?.value||1);
+    j.value=`${juzFor(q.no,ay)}`;
+  }
+  function choose(type,name,slot,surah){
+    const x=parts(type,name,slot),s=document.getElementById(x.s),q=document.getElementById(x.q),d=document.getElementById(x.d);
+    if(!s) return;
+    const exact=(window.surahList||[]).find(v=>String(v.name)===String(surah));
+    if(!exact)return;
+    s.value=exact.name;
+    if(q)q.value=`${exact.no}. ${exact.name}`;
+    if(d)d.classList.add('hidden');
+    setJuz(type,name,slot);
+    if(typeof window.onInlineTargetSurahChange==='function') window.onInlineTargetSurahChange(type,name,slot);
+  }
+  window.searchInlineTargetSurah=function(type,name,slot,value){
+    const x=parts(type,name,slot),d=document.getElementById(x.d),q=document.getElementById(x.q);
+    if(!d||!q)return;
+    const term=String(value||'').trim().toLowerCase();
+    const list=(window.surahList||[]).filter(v=>!term||String(v.name).toLowerCase().includes(term)||String(v.no).startsWith(term)).slice(0,20);
+    d.innerHTML=list.length?list.map(v=>`<button type="button" class="w-full text-left px-4 py-3 border-b border-slate-100 dark:border-slate-700 font-black text-sm text-slate-800 dark:text-slate-100 hover:bg-emerald-50 dark:hover:bg-slate-800" data-surah="${esc(v.name)}"><b>${v.no}.</b> ${esc(v.name)} <span class="text-xs text-slate-500">(${v.ayat} ayat)</span></button>`).join(''):'<div class="p-3 text-xs font-bold text-slate-500">Surat tidak ditemukan.</div>';
+    d.classList.remove('hidden');
+    d.querySelectorAll('button[data-surah]').forEach(btn=>btn.addEventListener('mousedown',e=>{e.preventDefault();choose(type,name,slot,btn.getAttribute('data-surah'));}));
+  };
+  document.addEventListener('change',e=>{
+    const id=e.target?.id||'';
+    if(id.includes('inputTargetHafalanJangkaPendekSurat_')){const name=id.split('inputTargetHafalanJangkaPendekSurat_')[1];setJuz('hafalan',name,'jangkaPendek');}
+    else if(id.includes('inputTargetHafalanAkanDatangSurat_')){const name=id.split('inputTargetHafalanAkanDatangSurat_')[1];setJuz('hafalan',name,'akanDatang');}
+    else if(id.includes('inputTargetMurojaahSurat_')){const name=id.split('inputTargetMurojaahSurat_')[1];setJuz('murojaah',name,'legacy');}
+  });
+  document.addEventListener('input',e=>{
+    const id=e.target?.id||'';
+    if(id.includes('inputTargetHafalanJangkaPendekAyat_')){const name=id.split('inputTargetHafalanJangkaPendekAyat_')[1];setJuz('hafalan',name,'jangkaPendek');}
+    else if(id.includes('inputTargetHafalanAkanDatangAyat_')){const name=id.split('inputTargetHafalanAkanDatangAyat_')[1];setJuz('hafalan',name,'akanDatang');}
+    else if(id.includes('inputTargetMurojaahAyat_')){const name=id.split('inputTargetMurojaahAyat_')[1];setJuz('murojaah',name,'legacy');}
+  });
+  const oldSave=window.saveInputTarget;
+  if(typeof oldSave==='function') window.saveInputTarget=function(type,name,slot='legacy'){
+    setJuz(type,name,slot);
+    return oldSave(type,name,slot);
+  };
+  const oldChange=window.onInlineTargetSurahChange;
+  window.onInlineTargetSurahChange=function(type,name,slot='legacy'){
+    const r=oldChange?.(type,name,slot);
+    setJuz(type,name,slot);
+    return r;
+  };
+  function syncVisible(){
+    [['hafalan','jangkaPendek'],['hafalan','akanDatang'],['murojaah','legacy']].forEach(([type,slot])=>{
+      document.querySelectorAll(`[id^="inputTarget${type==='hafalan'?'Hafalan':'Murojaah'}${slot==='jangkaPendek'?'JangkaPendek':slot==='akanDatang'?'AkanDatang':''}Surat_"]`).forEach(sel=>{
+        const name=sel.id.split('_').slice(-1)[0],x=parts(type,name,slot),q=document.getElementById(x.q),s=sel;
+        if(q && !q.value && s.value){const sur=(window.surahList||[]).find(v=>v.name===s.value);if(sur)q.value=`${sur.no}. ${sur.name}`;}
+        setJuz(type,name,slot);
+      });
+    });
+  }
+  setTimeout(syncVisible,700);
+  setTimeout(syncVisible,1800);
+})();
+</script>
+
 </body>
 </html>

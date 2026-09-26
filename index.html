@@ -174,6 +174,35 @@
         }
 
 
+
+        /* HP: tombol nama santri dan Buka Form dibuat lebih besar agar mudah disentuh.
+           Hanya visual/responsif, tanpa mengubah fungsi atau data. */
+        @media (max-width: 767px) {
+            #santriKotakContainer .santri-picker-btn {
+                min-height: 64px !important;
+                padding: 10px 12px !important;
+                font-size: 14px !important;
+                line-height: 1.25 !important;
+                border-radius: 14px !important;
+            }
+            #santriKotakContainer .santri-picker-btn span:first-child {
+                font-size: 14px !important;
+                line-height: 1.3 !important;
+            }
+            #santriKotakContainer .santri-picker-btn span:last-child {
+                font-size: 11px !important;
+                margin-top: 4px !important;
+            }
+            #santriGridContainer .mobile-form-open-btn {
+                width: 100% !important;
+                min-height: 58px !important;
+                padding: 13px 16px !important;
+                font-size: 15px !important;
+                line-height: 1.2 !important;
+                border-radius: 14px !important;
+            }
+        }
+
         /* Dashboard Santri: tetap tersedia sebagai menu utama. */
         #btnTab-dashboard { display: inline-flex !important; visibility: visible !important; }
 </style>
@@ -1988,7 +2017,7 @@
                         ? 'bg-emerald-600 text-white border-emerald-700 ring-2 ring-amber-400'
                         : (isFemale ? 'bg-pink-100 hover:bg-pink-200 border-pink-300 text-pink-950 dark:bg-pink-950/60 dark:text-pink-200 dark:border-pink-800' : 'bg-sky-100 hover:bg-sky-200 border-sky-300 text-sky-950 dark:bg-sky-950/60 dark:text-sky-200 dark:border-sky-800');
                     return `
-                        <button type="button" onclick='window.quickSelectSantri(${JSON.stringify(selected.name)})' class="w-full p-2.5 ${cardBg} border-2 rounded-xl shadow-xs font-bold text-[10px] flex flex-col items-center justify-center transition text-center min-h-[44px]">
+                        <button type="button" onclick='window.quickSelectSantri(${JSON.stringify(selected.name)})' class="santri-picker-btn w-full p-2.5 ${cardBg} border-2 rounded-xl shadow-xs font-bold text-[10px] flex flex-col items-center justify-center transition text-center min-h-[44px]">
                             <span class="leading-snug break-words">${selected.name}</span>
                             <span class="mt-0.5 text-[9px] font-black opacity-70">${selected.class || 'Tanpa Kelas'}</span>
                         </button>`;
@@ -2115,19 +2144,19 @@
                                         <tr class="align-top bg-white dark:bg-slate-800">
                                             <td class="p-3 border-t border-slate-200 dark:border-slate-700">
                                                 <div class="font-black ${isTodayBac ? 'text-emerald-600' : 'text-slate-500'}">${isTodayBac ? 'Sudah input hari ini' : 'Belum di input'}</div>
-                                                <button type="button" onclick='window.toggleCardSection(${JSON.stringify(s.name)}, "bacaan")' class="mt-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black">${isBacaanOpen ? 'Tutup Form' : 'Buka Form'}</button>
+                                                <button type="button" onclick='window.toggleCardSection(${JSON.stringify(s.name)}, "bacaan")' class="mobile-form-open-btn mt-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black">${isBacaanOpen ? 'Tutup Form' : 'Buka Form'}</button>
                                             </td>
                                             <td class="p-3 border-t border-slate-200 dark:border-slate-700">
                                                 <div class="font-black ${isTodayHaf ? 'text-rose-600' : 'text-slate-500'}">${isTodayHaf ? 'Sudah input hari ini' : 'Belum di input'}</div>
-                                                <button type="button" onclick='window.toggleCardSection(${JSON.stringify(s.name)}, "hafalan")' class="mt-2 px-3 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-black">${isHafalanOpen ? 'Tutup Form' : 'Buka Form'}</button>
+                                                <button type="button" onclick='window.toggleCardSection(${JSON.stringify(s.name)}, "hafalan")' class="mobile-form-open-btn mt-2 px-3 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-black">${isHafalanOpen ? 'Tutup Form' : 'Buka Form'}</button>
                                             </td>
                                             <td class="p-3 border-t border-slate-200 dark:border-slate-700">
                                                 <div class="font-black ${isTodayMur ? 'text-purple-600' : 'text-slate-500'}">${isTodayMur ? 'Sudah input hari ini' : 'Belum di input'}</div>
-                                                <button type="button" onclick='window.toggleCardSection(${JSON.stringify(s.name)}, "murojaah")' class="mt-2 px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-black">${isMurojaahOpen ? 'Tutup Form' : 'Buka Form'}</button>
+                                                <button type="button" onclick='window.toggleCardSection(${JSON.stringify(s.name)}, "murojaah")' class="mobile-form-open-btn mt-2 px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-black">${isMurojaahOpen ? 'Tutup Form' : 'Buka Form'}</button>
                                             </td>
                                             <td class="p-3 border-t border-slate-200 dark:border-slate-700">
                                                 <div class="font-black ${isTodayTug ? 'text-amber-600' : 'text-slate-500'}">${isTodayTug ? 'Sudah input hari ini' : 'Belum di input'}</div>
-                                                <button type="button" onclick='window.toggleCardSection(${JSON.stringify(s.name)}, "tugas")' class="mt-2 px-3 py-2 bg-amber-700 hover:bg-amber-800 text-white rounded-xl font-black">${isTugasOpen ? 'Tutup Form' : 'Buka Form'}</button>
+                                                <button type="button" onclick='window.toggleCardSection(${JSON.stringify(s.name)}, "tugas")' class="mobile-form-open-btn mt-2 px-3 py-2 bg-amber-700 hover:bg-amber-800 text-white rounded-xl font-black">${isTugasOpen ? 'Tutup Form' : 'Buka Form'}</button>
                                             </td>
                                         </tr>
                                     </tbody>
@@ -6959,10 +6988,36 @@ html.dark #rqSafetyBackupBox #rqSafetyBackupLocation b{color:#ecfdf5 !important}
   function calcTarget(name,t){if(!t)return {real:0,target:0,pct:0,rows:[],completeDate:'',lastAyat:0};const q=window.rqTargetEngine?.calc('hafalan',name,t)||{};return {real:Number(q.ayatCount)||0,target:Number(q.ayatTarget)||0,pct:Number(q.pct)||0,rows:q.rows||[],completeDate:q.completeDate||'',lastAyat:Number(q.lastAyat)||0};}
   function statusResult(t,q){if(!t)return {status:'Belum Mulai',result:'Belum dinilai'};const today=dkey(new Date()),mulai=dkey(t.mulai),selesai=dkey(t.selesai);if(today<mulai)return {status:'Belum Mulai',result:'Belum dinilai'};if(q.pct>=100)return {status:'Selesai',result:'Berhasil'};if(today>selesai)return {status:'Terlewat',result:'Tidak Berhasil'};return {status:'Sedang Berjalan',result:'Belum dinilai'};}
   function fmtDate(v){const d=dkey(v);if(!d)return '-';const [y,m,day]=d.split('-');return `${day}-${m}-${y}`;}
-  function targetText(name){const db=targetDB(),d=db.hafalan?.[name]||{};let legacy=d.ayat&&!d.jangkaPendek&&!d.akanDatang?d:null;const short=d.jangkaPendek||legacy||null,future=d.akanDatang||null;let out=`LAPORAN TARGET HAFALAN\nNama: ${name}\n\n`;
-    const block=(label,t)=>{if(!t)return `${label}\nBelum ada target.\n`;const q=calcTarget(name,t),sr=statusResult(t,q);let s=`${label}\nSurat: ${t.surat||'-'}\nJuz: ${t.juz||'-'}\nTarget: ${q.target} ayat\nRealisasi: ${q.real}/${q.target} ayat
-Sampai ayat: ${q.lastAyat||0}\nProgress: ${q.pct}%\nPeriode: ${fmtDate(t.mulai)} s.d. ${fmtDate(t.selesai)}\nStatus: ${sr.status}\nHasil: ${sr.result}`;if(q.completeDate)s+=`\nTuntas: ${fmtDate(q.completeDate)}`;return s+'\n';};
-    out+=block('TARGET JANGKA PENDEK',short)+'\n'+block('TARGET YANG AKAN DATANG',future);return out.trim();}
+  function targetText(name){
+    const db=targetDB(),d=db.hafalan?.[name]||{};
+    const legacy=d.ayat&&!d.jangkaPendek&&!d.akanDatang?d:null;
+    const short=d.jangkaPendek||legacy||null;
+    const future=d.akanDatang||null;
+    const valid=t=>!!(t&&String(t.surat||'').trim()&&Number(t.ayat)>0&&String(t.mulai||'').trim()&&String(t.selesai||'').trim());
+    const fmtPeriode=(mulai,selesai)=>{
+      if(!mulai||!selesai)return '-';
+      const d1=new Date(`${mulai}T00:00:00`),d2=new Date(`${selesai}T00:00:00`);
+      const hari=Math.max(0,Math.round((d2-d1)/86400000));
+      const f=v=>{const d=new Date(`${v}T00:00:00`),m=['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];return `${d.getDate()} ${m[d.getMonth()]}`};
+      return `${f(mulai)} s.d ${f(selesai)} ( ${hari} Hari )`;
+    };
+    const blocks=[];
+    const block=(label,t)=>{
+      if(!valid(t))return;
+      const q=calcTarget(name,t);
+      const desc=[t.juz?`Juz ${t.juz}`:'',t.surat||''].filter(Boolean).join(' · ');
+      blocks.push([
+        `• *${label}:* ${desc}`,
+        `• *Target Sampai ayat ke :* ${q.target||0}`,
+        `• *Realisasi sudah sampai ayat ke :* ${q.lastAyat||0}`,
+        `• *Progress:* ${q.pct||0}%`,
+        `• *Periode:*  ${fmtPeriode(t.mulai,t.selesai)}`
+      ].join('\n'));
+    };
+    block('Target Saat ini',short);
+    block('Target Yang Akan Datang',future);
+    return blocks.length?`Nama Santri: ${name}\n🎯 *Target & Perkembangan:*\n${blocks.join('\n\n')}`:`Nama Santri: ${name}`;
+  }
   window.renderTargetReport=function(){const sel=document.getElementById('targetReportClassFilter'),grid=document.getElementById('targetReportSantriGrid'),ta=document.getElementById('targetReportPreview');if(!sel||!grid||!ta)return;if(!sel.options.length)sel.innerHTML=classes.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');sel.value=window.targetReportClass||classes[0]||'';const list=(window.santriList||[]).filter(s=>s.class===window.targetReportClass);if(!window.selectedTargetReportSantri||!list.some(s=>s.name===window.selectedTargetReportSantri))window.selectedTargetReportSantri=list[0]?.name||'';grid.innerHTML=list.length?list.map(s=>`<button type="button" onclick='window.selectTargetReportSantri(${JSON.stringify(s.name)})' class="p-3 rounded-2xl border-2 font-black text-xs sm:text-sm ${s.name===window.selectedTargetReportSantri?'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/40':'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800'}">${esc(s.name)}</button>`).join(''):'<div class="text-xs text-slate-400 font-bold col-span-full">Tidak ada santri pada kelas ini.</div>';ta.value=window.selectedTargetReportSantri?targetText(window.selectedTargetReportSantri):'Pilih santri untuk melihat laporan target.';}
   window.filterTargetReportClass=function(cls){window.targetReportClass=cls;window.selectedTargetReportSantri='';window.renderTargetReport();};
   window.selectTargetReportSantri=function(name){window.selectedTargetReportSantri=name;window.renderTargetReport();};

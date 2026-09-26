@@ -6166,7 +6166,21 @@
                 </div>
 
                 <div class="flex flex-wrap items-center gap-3 pt-2">
-                    <div id="rqSafetyBackupPlacement" class="mt-4"></div>
+                    <div id="rqLocalMemoryInfo" class="mt-4 p-4 rounded-2xl border-2 border-sky-200 dark:border-sky-900 bg-sky-50/70 dark:bg-sky-950/30">
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <div>
+      <div class="font-black text-sm text-sky-900 dark:text-sky-200"><i class="fa-solid fa-database"></i> Memori Lokal Terpakai</div>
+      <div id="rqLocalMemoryText" class="text-xs font-bold text-slate-600 dark:text-slate-300 mt-1">Menghitung...</div>
+    </div>
+    <button type="button" id="rqLocalMemoryRefresh" class="px-3 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-[11px] font-black">↻ Perbarui</button>
+  </div>
+  <div class="mt-3 h-3 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+    <div id="rqLocalMemoryBar" class="h-full rounded-full bg-sky-500 transition-all" style="width:0%"></div>
+  </div>
+  <div id="rqLocalMemoryNote" class="text-[10px] font-bold text-slate-500 dark:text-slate-400 mt-2">Persentase dihitung dari kapasitas penyimpanan lokal yang dilaporkan browser untuk situs ini.</div>
+</div>
+
+<div id="rqSafetyBackupPlacement" class="mt-4"></div>
 
                     <button onclick="window.exportDataToExcel()" class="px-4.5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-xs sm:text-sm flex items-center gap-2 shadow-md transition active:scale-95">
                         <i class="fa-solid fa-file-excel text-sm"></i> Download Ringkasan Santri (.csv)
@@ -7237,6 +7251,49 @@ html.dark #rqSafetyBackupBox #rqSafetyBackupLocation b{color:#ecfdf5 !important}
 })();
 </script>
 
+
+<script>
+(function(){
+  function fmt(bytes){
+    const n=Number(bytes)||0;
+    if(n<1024) return n.toFixed(0)+' B';
+    if(n<1024*1024) return (n/1024).toFixed(1)+' KB';
+    if(n<1024*1024*1024) return (n/1024/1024).toFixed(2)+' MB';
+    return (n/1024/1024/1024).toFixed(2)+' GB';
+  }
+  function localStorageBytes(){
+    let total=0;
+    try{ for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i)||''; const v=localStorage.getItem(k)||''; total += (k.length+v.length)*2; } }catch(_){}
+    return total;
+  }
+  async function update(){
+    const text=document.getElementById('rqLocalMemoryText');
+    const bar=document.getElementById('rqLocalMemoryBar');
+    const note=document.getElementById('rqLocalMemoryNote');
+    if(!text||!bar)return;
+    const localBytes=localStorageBytes();
+    let quota=5*1024*1024, usage=localBytes, source='Local Storage';
+    try{
+      if(navigator.storage && navigator.storage.estimate){
+        const e=await navigator.storage.estimate();
+        if(Number.isFinite(e.quota)&&e.quota>0){ quota=e.quota; usage=Number.isFinite(e.usage)?e.usage:localBytes; source='penyimpanan lokal situs'; }
+      }
+    }catch(_){}
+    const pct=Math.min(100,Math.max(0,(usage/quota)*100));
+    text.textContent=`${pct.toFixed(1)}% terpakai · ${fmt(usage)} dari ${fmt(quota)}`;
+    bar.style.width=pct.toFixed(2)+'%';
+    note.textContent=`Memori yang terdeteksi: ${fmt(usage)}. Kapasitas yang dilaporkan browser: ${fmt(quota)} (${source}).`;
+  }
+  function init(){
+    update();
+    const b=document.getElementById('rqLocalMemoryRefresh');
+    if(b)b.onclick=update;
+    window.addEventListener('rq:db-updated',update);
+    window.addEventListener('storage',update);
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
+})();
+</script>
 </body>
 </html>\n<script id="rq-target-multi-surah-logic">
 (function(){

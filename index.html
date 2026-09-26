@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="id" class="h-full">
 <head>
+<!-- FORM INPUT PERSISTENCE V2: persistent rq_form_input_state_v1 + history hydration -->
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Monitoring Tahfizh RQ Al-Khansa</title>
@@ -282,7 +283,46 @@
         window.selectedKartuSantriName = null;
         window.kartuClassFilter = 'Abdurrahman';
         window.reportWaClassFilter = 'Abdurrahman';
+        // ============================================================
+        // MEMORI FORM INPUT PERSISTEN
+        // Nilai kolom form disimpan ke localStorage agar tidak kembali
+        // kosong setelah reload, pindah perangkat lewat backup/sinkronisasi,
+        // atau import Merge. Key rq_* sehingga otomatis ikut backup/export.
+        // ============================================================
         window.localFormCache = {};
+        try {
+            const savedFormCache = localStorage.getItem('rq_form_input_state_v1');
+            if (savedFormCache) {
+                const parsedFormCache = JSON.parse(savedFormCache);
+                if (parsedFormCache && typeof parsedFormCache === 'object') {
+                    window.localFormCache = parsedFormCache;
+                }
+            }
+        } catch (e) {
+            console.warn('Memori form input lokal tidak dapat dibaca:', e);
+            window.localFormCache = {};
+        }
+        window._formCacheSaveTimer = null;
+
+        window.persistFormCache = function(immediate = false) {
+            const write = () => {
+                try {
+                    localStorage.setItem('rq_form_input_state_v1', JSON.stringify(window.localFormCache || {}));
+                } catch (e) {
+                    console.warn('Memori form input lokal tidak dapat disimpan:', e);
+                }
+            };
+            if (immediate) {
+                clearTimeout(window._formCacheSaveTimer);
+                window._formCacheSaveTimer = null;
+                write();
+                return;
+            }
+            clearTimeout(window._formCacheSaveTimer);
+            window._formCacheSaveTimer = setTimeout(write, 250);
+        };
+
+        window.addEventListener('beforeunload', () => window.persistFormCache(true));
 
         // Normalisasi data santri agar frontend selalu mengikuti struktur
         // Tidak menghapus field tambahan seperti gender bila masih tersedia di frontend.
@@ -1594,6 +1634,7 @@
 
         window.cacheFormInput = function(elem, key) {
             window.localFormCache[key] = elem.value;
+            window.persistFormCache(false);
 
             // Preview Laporan WA Personal di halaman Input ikut berubah
             // setiap kali operator mengedit data.
@@ -1942,6 +1983,136 @@
             }
         };
 
+        // ============================================================
+        // PULIHKAN FORM DARI HISTORY
+        // Jika data lama sudah masuk ke riwayat tetapi memori form belum
+        // pernah tersimpan (mis. data dibuat sebelum fitur ini), bentuk
+        // kembali nilai kolom input dari riwayat terbaru.
+        // Tidak mengubah history; hanya mengisi state form.
+        // ============================================================
+        window.hydrateInputFormsFromHistory = function() {
+            const parseList = (key) => {
+                try {
+                    const value = JSON.parse(localStorage.getItem(key) || '[]');
+                    return Array.isArray(value) ? value : [];
+                } catch (_) {
+                    return [];
+                }
+            };
+
+            const histories = {
+                bacaan: parseList('rq_history_bacaan'),
+                hafalan: parseList('rq_history_hafalan'),
+                murojaah: parseList('rq_history_murojaah'),
+                tugas: parseList('rq_history_tugas')
+            };
+
+            const escapeKey = (name) => String(name || '');
+            const setIfMissing = (key, value) => {
+                if (value === undefined || value === null) return;
+                if (window.localFormCache[key] === undefined) {
+                    window.localFormCache[key] = String(value);
+                }
+            };
+
+            const parseDetailToSlots = (detail, category) => {
+                const result = [];
+                const parts = String(detail || '').split(',').map(x => x.trim()).filter(Boolean);
+                for (const part of parts.slice(0, 3)) {
+                    const clean = part.replace(/\s*\(bertambah\s+\d+\s+(?:ayat|halaman)\)\s*$/i, '').trim();
+                    const iqroMatch = clean.match(/^(Iqro\s*\d+)\s+Hlm\s+(\d+)(?:-(\d+))?$/i);
+                    if (iqroMatch) {
+                        result.push({
+                            item: iqroMatch[1],
+                            start: iqroMatch[2],
+                            end: iqroMatch[3] || iqroMatch[2],
+                            mode: 'iqro',
+                            status: ''
+                        });
+                        continue;
+                    }
+                    const quranMatch = clean.match(/^(.*?)\s+(\d+)(?:-(\d+))?$/);
+                    if (quranMatch) {
+                        result.push({
+                            item: quranMatch[1].trim(),
+                            start: quranMatch[2],
+                            end: quranMatch[3] || quranMatch[2],
+                            mode: 'quran',
+                            status: ''
+                        });
+                    }
+                }
+                return result;
+            };
+
+            const configs = [
+                { type: 'bacaan', category: 'bac', history: histories.bacaan, slotsKey: 'cloudBacSlots', statKey: 'cloudBacStat', catKey: 'cloudBacCat', detailKey: 'lastBacaan', dateKey: 'lastBacaanDate', statusKey: 'bac_stat', catTypeKey: 'bac_cat_type', catDescKey: 'bac_cat_desc' },
+                { type: 'hafalan', category: 'haf', history: histories.hafalan, slotsKey: 'cloudHafSlots', statKey: 'cloudHafStat', catKey: 'cloudHafCat', detailKey: 'lastHafalan', dateKey: 'lastHafalanDate', statusKey: 'haf_stat', catTypeKey: 'haf_cat_type', catDescKey: 'haf_cat_desc' },
+                { type: 'murojaah', category: 'mur', history: histories.murojaah, slotsKey: 'cloudMurSlots', statKey: 'cloudMurStat', catKey: 'cloudMurCat', detailKey: 'lastMurojaah', dateKey: 'lastMurojaahDate', statusKey: 'mur_stat', catTypeKey: 'mur_cat_type', catDescKey: 'mur_cat_desc' }
+            ];
+
+            (window.santriList || []).forEach(s => {
+                const name = escapeKey(s.name);
+                configs.forEach(cfg => {
+                    const latest = cfg.history.find(item => String(item?.name || '').toLowerCase() === name.toLowerCase());
+                    if (!latest) return;
+
+                    const slots = Array.isArray(latest.slots) && latest.slots.length
+                        ? latest.slots
+                        : parseDetailToSlots(latest.detail, cfg.category);
+
+                    s[cfg.detailKey] = latest.detail || s[cfg.detailKey] || '-';
+                    s[cfg.dateKey] = latest.tanggal || s[cfg.dateKey] || '';
+                    s[cfg.statKey] = latest.status || s[cfg.statKey] || '';
+                    s[cfg.catKey] = latest.catatan || s[cfg.catKey] || '';
+                    s[cfg.slotsKey] = slots;
+
+                    setIfMissing(`${name}_${cfg.category}_progress_status`, latest.progressStatus || '');
+                    setIfMissing(`${name}_${cfg.statusKey}`, latest.status || '');
+
+                    let catType = '';
+                    let catDesc = latest.catatan || '';
+                    const matchType = String(catDesc).match(/^\[(.*?)\]\s*(.*)$/);
+                    if (matchType) {
+                        catType = matchType[1];
+                        catDesc = matchType[2];
+                    }
+                    setIfMissing(`${name}_${cfg.catTypeKey}`, catType);
+                    setIfMissing(`${name}_${cfg.catDescKey}`, catDesc);
+
+                    if (latest.tanggal) setIfMissing(`tgl_${name}`, latest.tanggal);
+
+                    slots.slice(0, 3).forEach((slotData, idx) => {
+                        const slot = idx + 1;
+                        const mode = slotData?.mode || (String(slotData?.item || '').toLowerCase().includes('iqro') ? 'iqro' : 'quran');
+                        const item = slotData?.item && slotData.item !== '-' ? slotData.item : '';
+                        const start = slotData?.start && slotData.start !== '-' ? slotData.start : '';
+                        const end = slotData?.end && slotData.end !== '-' ? slotData.end : '';
+                        setIfMissing(`${name}_${cfg.category}_mode_${slot}`, mode);
+                        if (mode === 'iqro') {
+                            setIfMissing(`${name}_${cfg.category}_iqro_${slot}`, item);
+                        } else {
+                            setIfMissing(`${name}_${cfg.category}_surah_${slot}`, item);
+                        }
+                        setIfMissing(`${name}_${cfg.category}_start_${slot}`, start);
+                        setIfMissing(`${name}_${cfg.category}_end_${slot}`, end);
+                    });
+                });
+
+                const latestTugas = histories.tugas.find(item => String(item?.name || '').toLowerCase() === name.toLowerCase());
+                if (latestTugas) {
+                    s.lastTugas = latestTugas.detail || s.lastTugas || '-';
+                    s.lastTugasDate = latestTugas.tanggal || s.lastTugasDate || '';
+                    s.cloudTugCat = latestTugas.catatan || s.cloudTugCat || '';
+                    setIfMissing(`${name}_tug_detail`, latestTugas.detail || '');
+                    setIfMissing(`${name}_tug_cat`, latestTugas.catatan || '');
+                    if (latestTugas.tanggal) setIfMissing(`tgl_${name}`, latestTugas.tanggal);
+                }
+            });
+
+            window.persistFormCache(true);
+        };
+
         window.renderSantriCardsAndTable = function() {
             const kotakContainer = document.getElementById('santriKotakContainer');
             const grid = document.getElementById('santriGridContainer');
@@ -1950,6 +2121,7 @@
             // Selalu pakai master santri yang terakhir diterima dari lokal.
             // Jika lokal belum selesai diambil, gunakan master yang tertanam di HTML.
             window.santriList = window.normalizeSantriMaster(window.santriList);
+            window.hydrateInputFormsFromHistory();
             const master = window.santriList;
             const selectedName = String(window.selectedInputSantriName || '').trim().toLowerCase();
             const selectedClass = String(window.selectedClass || 'ALL').trim();
@@ -2023,12 +2195,12 @@
                 const badgeMur = isTodayMur ? '<span class="px-2.5 py-1 bg-purple-100 text-purple-800 text-[11px] font-black rounded-lg">Alhamdulillah hari ini sudah di input</span>' : '<span class="px-2.5 py-1 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[11px] font-black rounded-lg">Belum di input</span>';
                 const badgeTug = isTodayTug ? '<span class="px-2.5 py-1 bg-amber-100 text-amber-800 text-[11px] font-black rounded-lg">Alhamdulillah hari ini sudah di input</span>' : '<span class="px-2.5 py-1 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[11px] font-black rounded-lg">Belum di input</span>';
 
-                const defaultBacStat = s.cloudBacStat || '';
-                const defaultHafStat = s.cloudHafStat || '';
-                const defaultMurStat = s.cloudMurStat || '';
+                const defaultBacStat = window.getFormCache(`${s.name}_bac_stat`, s.cloudBacStat || '');
+                const defaultHafStat = window.getFormCache(`${s.name}_haf_stat`, s.cloudHafStat || '');
+                const defaultMurStat = window.getFormCache(`${s.name}_mur_stat`, s.cloudMurStat || '');
                 
-                let parsedBacCatType = '';
-                let parsedBacCatDesc = s.cloudBacCat || '';
+                let parsedBacCatType = window.getFormCache(`${s.name}_bac_cat_type`, '');
+                let parsedBacCatDesc = window.getFormCache(`${s.name}_bac_cat_desc`, s.cloudBacCat || '');
                 if (s.cloudBacCat && s.cloudBacCat.startsWith('[')) {
                     const matchType = s.cloudBacCat.match(/\[(.*?)\]/);
                     if (matchType) {
@@ -2039,8 +2211,8 @@
                     parsedBacCatDesc = s.cloudBacCat;
                 }
 
-                let parsedHafCatType = '';
-                let parsedHafCatDesc = s.cloudHafCat || '';
+                let parsedHafCatType = window.getFormCache(`${s.name}_haf_cat_type`, '');
+                let parsedHafCatDesc = window.getFormCache(`${s.name}_haf_cat_desc`, s.cloudHafCat || '');
                 if (s.cloudHafCat && s.cloudHafCat.startsWith('[')) {
                     const matchType = s.cloudHafCat.match(/\[(.*?)\]/);
                     if (matchType) {
@@ -2051,8 +2223,8 @@
                     parsedHafCatDesc = s.cloudHafCat;
                 }
 
-                let parsedMurCatType = '';
-                let parsedMurCatDesc = s.cloudMurCat || '';
+                let parsedMurCatType = window.getFormCache(`${s.name}_mur_cat_type`, '');
+                let parsedMurCatDesc = window.getFormCache(`${s.name}_mur_cat_desc`, s.cloudMurCat || '');
                 if (s.cloudMurCat && s.cloudMurCat.startsWith('[')) {
                     const matchType = s.cloudMurCat.match(/\[(.*?)\]/);
                     if (matchType) {
@@ -2063,8 +2235,8 @@
                     parsedMurCatDesc = s.cloudMurCat;
                 }
 
-                const defaultTugDetail = s.lastTugas && s.lastTugas !== '-' ? s.lastTugas : '';
-                const defaultTugCat = s.cloudTugCat || '';
+                const defaultTugDetail = window.getFormCache(`${s.name}_tug_detail`, s.lastTugas && s.lastTugas !== '-' ? s.lastTugas : '');
+                const defaultTugCat = window.getFormCache(`${s.name}_tug_cat`, s.cloudTugCat || '');
 
                 const isBacaanOpen = !!window.cardSectionToggleState[`${s.name}_section_bacaan`];
                 const isHafalanOpen = !!window.cardSectionToggleState[`${s.name}_section_hafalan`];
@@ -2096,7 +2268,7 @@
 
                         <div class="p-4 sm:p-5 space-y-4">
                             <div class="flex items-center justify-between text-xs sm:text-sm font-bold text-slate-500 bg-slate-100 dark:bg-slate-900 p-3.5 rounded-2xl">
-                                <span>Tanggal: <input type="date" id="tgl_${s.name}" value="${todayStr}" oninput="window.selectInlineWaSantri('${s.name}', true)" onchange="window.selectInlineWaSantri('${s.name}', true)" class="p-2.5 bg-white dark:bg-slate-800 border-2 rounded-xl font-bold text-xs sm:text-sm min-h-[46px]"></span>
+                                <span>Tanggal: <input type="date" id="tgl_${s.name}" value="${window.getFormCache(`tgl_${s.name}`, todayStr)}" oninput="window.cacheFormInput(this, 'tgl_${s.name}'); window.selectInlineWaSantri('${s.name}', true)" onchange="window.cacheFormInput(this, 'tgl_${s.name}'); window.selectInlineWaSantri('${s.name}', true)" class="p-2.5 bg-white dark:bg-slate-800 border-2 rounded-xl font-bold text-xs sm:text-sm min-h-[46px]"></span>
                                 <span class="text-emerald-700 dark:text-emerald-400 font-black">Form Input Setoran</span>
                             </div>
 
@@ -3559,6 +3731,8 @@
                         const currentJson = parseJson(currentValue);
                         if (key === 'rq_target_hafalan_murojaah_v2' && incomingJson && typeof incomingJson === 'object') {
                             localStorage.setItem(key, JSON.stringify(mergeTargetDb(currentJson || {}, incomingJson)));
+                        } else if (key === 'rq_form_input_state_v1' && incomingJson && typeof incomingJson === 'object' && !Array.isArray(incomingJson) && currentJson && typeof currentJson === 'object' && !Array.isArray(currentJson)) {
+                            localStorage.setItem(key, JSON.stringify({ ...(currentJson || {}), ...incomingJson }));
                         } else if (Array.isArray(incomingJson) && Array.isArray(currentJson)) {
                             localStorage.setItem(key, JSON.stringify(dedupeArray([...currentJson, ...incomingJson])));
                         } else {
@@ -4165,7 +4339,9 @@
                     for(const [k,v] of Object.entries(incoming)){
                         if(!k.startsWith('rq_'))continue;
                         const cur=localStorage.getItem(k), a=parse(cur), b=parse(v);
-                        if(Array.isArray(a)&&Array.isArray(b)) localStorage.setItem(k,JSON.stringify(dedupe([...a,...b])));
+                        if(k==='rq_form_input_state_v1'&&a&&b&&typeof a==='object'&&typeof b==='object'&&!Array.isArray(a)&&!Array.isArray(b)){
+                            localStorage.setItem(k,JSON.stringify({...a,...b}));
+                        } else if(Array.isArray(a)&&Array.isArray(b)) localStorage.setItem(k,JSON.stringify(dedupe([...a,...b])));
                         else if(k==='rq_target_hafalan_murojaah_v2'&&a&&b&&typeof a==='object'&&typeof b==='object'){
                             const out={...a};for(const type of ['hafalan','murojaah']){out[type]={...(a[type]||{})};for(const n of Object.keys(b[type]||{}))out[type][n]=b[type][n];}localStorage.setItem(k,JSON.stringify(out));
                         } else localStorage.setItem(k,String(v));

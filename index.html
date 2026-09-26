@@ -4010,14 +4010,39 @@
                 });
                 return latest;
             };
+            const latestHistoryByName = (key, name) => {
+                try {
+                    const arr = JSON.parse(localStorage.getItem(key) || '[]');
+                    if (!Array.isArray(arr)) return null;
+                    const targetName = String(name || '').trim().toLowerCase();
+                    return arr
+                        .filter(row => String(row?.name || '').trim().toLowerCase() === targetName)
+                        .sort((a,b) => {
+                            const ta = Number(a?.rawTime) || Date.parse(a?.timestamp || a?.tanggal || '') || 0;
+                            const tb = Number(b?.rawTime) || Date.parse(b?.timestamp || b?.tanggal || '') || 0;
+                            return tb - ta;
+                        })[0] || null;
+                } catch (_) { return null; }
+            };
             const rows = list.map(s => {
                 const name = String(s.name || '').trim();
+                const latestBacaan = latestHistoryByName('rq_history_bacaan', name);
+                const latestHafalan = latestHistoryByName('rq_history_hafalan', name);
+                const latestMurojaah = latestHistoryByName('rq_history_murojaah', name);
+                const latestTugas = latestHistoryByName('rq_history_tugas', name);
+                const displayStudent = {
+                    ...s,
+                    lastBacaan: latestBacaan?.detail || s.lastBacaan || '-',
+                    lastHafalan: latestHafalan?.detail || s.lastHafalan || '-',
+                    lastMurojaah: latestMurojaah?.detail || s.lastMurojaah || '-',
+                    lastTugas: latestTugas?.detail || s.lastTugas || '-'
+                };
                 const h = targetDB.hafalan?.[name] || {};
                 const cur = h.jangkaPendek || (h.ayat ? h : null);
                 const q = cur && window.rqTargetEngine?.calc ? window.rqTargetEngine.calc('hafalan', name, cur) : {};
                 const st = cur && window.rqTargetEngine?.status ? window.rqTargetEngine.status(cur, q) : {status:'Belum Ada',result:'Belum dinilai'};
                 const target = cur ? [cur.juz ? `Juz ${cur.juz}` : '', cur.surat || ''].filter(Boolean).join(' · ') : '-';
-                return {s, cur, q, st, target, latestInput: latestInputTime(name)};
+                return {s: displayStudent, cur, q, st, target, latestInput: latestInputTime(name)};
             }).sort((a,b) => {
                 const bt = Number(b.latestInput) || 0, at = Number(a.latestInput) || 0;
                 if (bt !== at) return bt - at;

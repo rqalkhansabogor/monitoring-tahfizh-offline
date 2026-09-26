@@ -2232,6 +2232,8 @@
                                                 <label class="text-xs sm:text-sm font-black text-slate-500">Target ayat<input id="inputTargetHafalanJangkaPendekAyat_${s.name}" type="number" min="1" inputmode="numeric" placeholder="Jumlah ayat" class="mt-1 w-full p-4 rounded-2xl border-2 bg-white dark:bg-slate-900 text-sm sm:text-base font-black min-h-[60px]"></label>
                                                 <div class="grid grid-cols-1 gap-3"><label class="text-xs sm:text-sm font-black text-slate-500">Tanggal mulai<input id="inputTargetHafalanJangkaPendekMulai_${s.name}" type="date" class="mt-1 w-full p-4 rounded-2xl border-2 bg-white dark:bg-slate-900 text-sm sm:text-base font-black min-h-[60px]"></label><label class="text-xs sm:text-sm font-black text-slate-500">Tanggal selesai<input id="inputTargetHafalanJangkaPendekSelesai_${s.name}" type="date" class="mt-1 w-full p-4 rounded-2xl border-2 bg-white dark:bg-slate-900 text-sm sm:text-base font-black min-h-[60px]"></label></div>
                                             </div>
+                                            <div id="inputTargetHafalanJangkaPendekMulti_${s.name}" class="rq-target-multi-list"></div>
+                                            <button type="button" class="rq-target-multi-add" onclick='window.addTargetSurahRow(${JSON.stringify(s.name)},"jangkaPendek")'><i class="fa-solid fa-plus mr-1"></i> Tambah Surat Lagi</button>
                                             <div id="inputTargetHafalanJangkaPendekInfo_${s.name}" class="text-[9px] font-bold text-slate-500"></div>
                                             <button type="button" onclick='window.saveInputTarget("hafalan", ${JSON.stringify(s.name)}, "jangkaPendek")' class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-[10px] active:scale-[.99]"><i class="fa-solid fa-floppy-disk mr-1"></i> Simpan Target Jangka Pendek</button>
                                             <div id="inputTargetHafalanJangkaPendekProgress_${s.name}"></div>
@@ -2244,6 +2246,8 @@
                                                 <label class="text-xs sm:text-sm font-black text-slate-500">Target ayat<input id="inputTargetHafalanAkanDatangAyat_${s.name}" type="number" min="1" inputmode="numeric" placeholder="Jumlah ayat" class="mt-1 w-full p-4 rounded-2xl border-2 bg-white dark:bg-slate-900 text-sm sm:text-base font-black min-h-[60px]"></label>
                                                 <div class="grid grid-cols-1 gap-3"><label class="text-xs sm:text-sm font-black text-slate-500">Tanggal mulai<input id="inputTargetHafalanAkanDatangMulai_${s.name}" type="date" class="mt-1 w-full p-4 rounded-2xl border-2 bg-white dark:bg-slate-900 text-sm sm:text-base font-black min-h-[60px]"></label><label class="text-xs sm:text-sm font-black text-slate-500">Tanggal selesai<input id="inputTargetHafalanAkanDatangSelesai_${s.name}" type="date" class="mt-1 w-full p-4 rounded-2xl border-2 bg-white dark:bg-slate-900 text-sm sm:text-base font-black min-h-[60px]"></label></div>
                                             </div>
+                                            <div id="inputTargetHafalanAkanDatangMulti_${s.name}" class="rq-target-multi-list"></div>
+                                            <button type="button" class="rq-target-multi-add" onclick='window.addTargetSurahRow(${JSON.stringify(s.name)},"akanDatang")'><i class="fa-solid fa-plus mr-1"></i> Tambah Surat Lagi</button>
                                             <div id="inputTargetHafalanAkanDatangInfo_${s.name}" class="text-[9px] font-bold text-slate-500"></div>
                                             <button type="button" onclick='window.saveInputTarget("hafalan", ${JSON.stringify(s.name)}, "akanDatang")' class="w-full py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl font-black text-[10px] active:scale-[.99]"><i class="fa-solid fa-floppy-disk mr-1"></i> Simpan Target Yang Akan Datang</button>
                                             <div id="inputTargetHafalanAkanDatangProgress_${s.name}"></div>
@@ -6742,26 +6746,48 @@ html.dark #rqSafetyBackupBox #rqSafetyBackupLocation b{color:#ecfdf5 !important}
   const rowsFor=(type,name,t)=>{const created=targetCreated(t);return histories(type,name).filter(row=>{if(!inPeriod(row,t)||!rowMatches(row,t))return false;const rt=rowTime(row);return !(created&&rt&&rt<created);}).sort((a,b)=>rowTime(a)-rowTime(b));};
   const addRange=(set,a,b)=>{if(!Number.isFinite(a)||a<1)return;if(Number.isFinite(b)&&b>=a){for(let n=a;n<=b;n++)set.add(n);}else set.add(a);};
   const fallbackNumbers=row=>{const d=String(row?.detail||''),set=new Set(),re=/(?:ayat|ay)[^0-9]*(\d+)(?:\s*[-–]\s*(\d+))?/gi;let m;while((m=re.exec(d))){const a=+m[1],b=m[2]?+m[2]:a;addRange(set,a,b);}return set;};
+  const targetItems=t=>{
+    if(!t)return [];
+    if(Array.isArray(t.items)&&t.items.length)return t.items.filter(x=>x&&String(x.surat||'').trim()&&Number(x.ayat)>0);
+    if(String(t.surat||'').trim()&&Number(t.ayat)>0)return [{surat:t.surat,ayat:Number(t.ayat),juz:t.juz||''}];
+    return [];
+  };
   const calc=(type,name,t)=>{
-    if(!t)return {ayatReal:0,ayatTarget:0,ayatPct:0,setoranReal:0,setoranTarget:0,setoranPct:0,pct:0,ayatCount:0,lastAyat:0,rows:[],completeDate:''};
-    const target=Math.max(0,Number(t.ayat)||0), targetSet=new Set(), rows=rowsFor(type,name,t), contributing=[];
-    for(const row of rows){
-      const before=targetSet.size, ss=slots(row);
-      if(ss.length){ for(const sl of ss){ if(slotMatches(sl,t)) addRange(targetSet,Number(sl.start),Number(sl.end)); } }
-      else if(!t?.surat || norm(row?.detail).includes(norm(t.surat))){ fallbackNumbers(row).forEach(n=>targetSet.add(n)); }
-      if(targetSet.size>before) contributing.push(row);
+    if(!t)return {ayatReal:0,ayatTarget:0,ayatPct:0,setoranReal:0,setoranTarget:0,setoranPct:0,pct:0,ayatCount:0,lastAyat:0,rows:[],completeDate:'',itemProgress:[]};
+    const items=targetItems(t), rows=rowsFor(type,name,t), contributing=new Set(), itemProgress=[];
+    let totalTarget=0,totalReal=0,lastAyat=0;
+    for(const item of items){
+      const target=Math.max(0,Number(item.ayat)||0); totalTarget+=target;
+      const set=new Set(), targetSurat=norm(item.surat);
+      for(const row of rows){
+        const ss=slots(row);
+        if(ss.length){
+          for(const sl of ss){
+            const itemName=norm(sl?.item);
+            if(itemName===targetSurat||itemName.includes(targetSurat)||targetSurat.includes(itemName)) addRange(set,Number(sl.start),Number(sl.end));
+          }
+        }else if(norm(row?.detail).includes(targetSurat)){ fallbackNumbers(row).forEach(n=>set.add(n)); }
+      }
+      for(const n of [...set]) if(n>target)set.delete(n);
+      const real=Math.min(target,set.size), pct=target?Math.min(100,Math.round(real/target*100)):0;
+      const last=target?Math.min(target,set.size?Math.max(...set):0):0;
+      totalReal+=real; if(last>lastAyat)lastAyat=last;
+      itemProgress.push({surat:item.surat,ayatTarget:target,ayatReal:real,pct,lastAyat:last,juz:item.juz||''});
+      for(const row of rows){
+        const ss=slots(row);
+        const hit=ss.length?ss.some(sl=>{const n=norm(sl?.item);return n===targetSurat||n.includes(targetSurat)||targetSurat.includes(n)}):norm(row?.detail).includes(targetSurat);
+        if(hit)contributing.add(row);
+      }
     }
-    if(target>0){ for(const n of [...targetSet]) if(n>target) targetSet.delete(n); }
-    const ayatCount=targetSet.size;
-    const ayatReal=Math.min(target,ayatCount);
-    const lastAyat=target>0 ? Math.min(target, targetSet.size?Math.max(...targetSet):0) : (targetSet.size?Math.max(...targetSet):0);
-    const ayatPct=target?Math.min(100,Math.round(ayatReal/target*100)):0;
+    const ayatTarget=totalTarget, ayatReal=Math.min(ayatTarget,totalReal), ayatCount=totalReal;
+    const ayatPct=ayatTarget?Math.min(100,Math.round(ayatReal/ayatTarget*100)):0;
     const setoranTarget=Math.max(0,Number(t.kali)||0);
     const setoranReal=type==='murojaah'?Math.min(setoranTarget||rows.length,rows.length):rows.length;
     const setoranPct=setoranTarget?Math.min(100,Math.round(setoranReal/setoranTarget*100)):0;
-    const pct=type==='murojaah'?(target&&setoranTarget?Math.min(ayatPct,setoranPct):target?ayatPct:setoranPct):ayatPct;
-    const completeDate=pct>=100&&contributing.length?rowDate(contributing[contributing.length-1]):'';
-    return {ayatReal,ayatTarget:target,ayatPct,setoranReal,setoranTarget,setoranPct,pct,ayatCount,lastAyat,rows,completeDate};
+    const pct=type==='murojaah'?(ayatTarget&&setoranTarget?Math.min(ayatPct,setoranPct):ayatTarget?ayatPct:setoranPct):ayatPct;
+    const contrib=[...contributing].sort((a,b)=>rowTime(a)-rowTime(b));
+    const completeDate=pct>=100&&contrib.length?rowDate(contrib[contrib.length-1]):'';
+    return {ayatReal,ayatTarget,ayatPct,setoranReal,setoranTarget,setoranPct,pct,ayatCount,lastAyat,rows,completeDate,itemProgress};
   };
   const status=(t,q)=>{if(!t)return {status:'Belum Ada',result:'Belum dinilai'};const today=dateKey(new Date()),mulai=dateKey(t.mulai),selesai=dateKey(t.selesai);if(!mulai||!selesai)return {status:'Belum Lengkap',result:'Belum dinilai'};if(today<mulai)return {status:'Belum Mulai',result:'Belum dinilai'};if(q.pct>=100)return {status:'Selesai',result:'Berhasil'};if(today>selesai)return {status:'Terlewat',result:'Tidak Berhasil'};return {status:'Sedang Berjalan',result:'Belum dinilai'};};
   const getTarget=(name,type,slot='legacy')=>{const d=getDB(),t=d[type]?.[name];if(type==='hafalan'){if(t?.jangkaPendek||t?.akanDatang)return slot==='akanDatang'?t.akanDatang:t.jangkaPendek;return t?.ayat?t:null;}return t||null;};
@@ -6849,12 +6875,12 @@ html.dark #rqSafetyBackupBox #rqSafetyBackupLocation b{color:#ecfdf5 !important}
             <div class="text-center mb-3"><h3 class="font-black text-sm sm:text-base">Progress Hafalan</h3><p class="text-[9px] font-bold text-slate-500">Berdasarkan Target Hafalan aktif.</p></div>
             ${circle(hafPct,'haf','Hafalan','fa-solid fa-star')}
             <div class="mt-4 grid grid-cols-2 gap-2"><div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-900"><div class="text-[8px] font-black text-slate-400">Target</div><div class="text-xs font-black mt-1">${hp.has?hp.target+' ayat':'-'}</div></div><div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-900"><div class="text-[8px] font-black text-slate-400">Realisasi</div><div class="text-xs font-black mt-1">${hp.has?hp.real+' ayat':'-'}</div></div></div>
-            <div class="mt-3 text-[9px] font-bold text-slate-500">${hp.has?`Target: ${esc(hp.t.juz?`Juz ${hp.t.juz}`:'')} ${esc(hp.t.surat||'')} · ${esc((hp.t.mulai||'')+' s.d '+(hp.t.selesai||''))}`:'Silakan isi Target Hafalan di menu Input.'}</div>
+            <div class="mt-3 text-[9px] font-bold text-slate-500">${hp.has?`Target: ${esc(targetItemsLabel(hp.t))} · ${esc((hp.t.mulai||'')+' s.d '+(hp.t.selesai||''))}`:'Silakan isi Target Hafalan di menu Input.'}</div>
           </div>
         </div>
         <div class="bg-white dark:bg-slate-800 p-4 sm:p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
           <div class="flex items-center gap-2 mb-3"><span class="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center"><i class="fa-solid fa-bullseye"></i></span><div><h3 class="font-black text-sm">Target Hafalan</h3><p class="text-[9px] font-bold text-slate-500">Ringkasan target yang sedang berjalan.</p></div></div>
-          ${hp.has?`<div class="flex items-center justify-between gap-3 p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/50"><div><div class="text-xs font-black">${esc(hp.t.surat||'-')}</div><div class="text-[9px] font-bold text-slate-500">${esc(hp.t.juz?`Juz ${hp.t.juz}`:'')} · ${esc((hp.t.mulai||'')+' s.d '+(hp.t.selesai||''))}</div></div><div class="text-right"><div class="text-lg font-black text-emerald-600">${hafPct}%</div><div class="text-[9px] font-bold text-slate-500">${hp.real}/${hp.target} ayat</div></div></div>`:`<div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-900 text-center text-xs font-bold text-slate-500">Belum ada Target Hafalan.</div>`}
+          ${hp.has?`<div class="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/50"><div class="text-xs font-black">${esc(targetItemsLabel(hp.t)||'-')}</div><div class="text-[9px] font-bold text-slate-500 mt-1">${esc(targetItemsJuz(hp.t))} · ${esc((hp.t.mulai||'')+' s.d '+(hp.t.selesai||''))}</div><div class="flex items-center justify-between mt-2"><div class="text-lg font-black text-emerald-600">${hafPct}%</div><div class="text-[9px] font-bold text-slate-500">${hp.real}/${hp.target} ayat</div></div></div>`:`<div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-900 text-center text-xs font-bold text-slate-500">Belum ada Target Hafalan.</div>`}
         </div>`;
     };
     function setSurahLimit(category,slot,name){
@@ -6874,6 +6900,18 @@ html.dark #rqSafetyBackupBox #rqSafetyBackupLocation b{color:#ecfdf5 !important}
     document.addEventListener('DOMContentLoaded',()=>{setTimeout(()=>{window.applyAllSurahAyatLimits();window.renderDashboardSantri();},250);});
 })();
 </script>
+<style id="rq-target-multi-surah-css">
+.rq-target-multi-list{display:flex;flex-direction:column;gap:.75rem;margin-top:.75rem}
+.rq-target-multi-row{border:2px solid rgb(167 243 208);background:rgba(236,253,245,.55);border-radius:1rem;padding:.75rem}
+.dark .rq-target-multi-row{border-color:rgb(6 78 59);background:rgba(6,78,59,.16)}
+.rq-target-multi-row-grid{display:grid;grid-template-columns:1fr;gap:.75rem}
+.rq-target-multi-row label{font-size:.75rem;font-weight:900;color:#64748b}
+.rq-target-multi-row input,.rq-target-multi-row select{box-sizing:border-box;width:100%;margin-top:.25rem;padding:1rem;border:2px solid #cbd5e1;border-radius:1rem;background:#fff;min-height:58px;font-weight:900}
+.dark .rq-target-multi-row input,.dark .rq-target-multi-row select{background:#0f172a;border-color:#334155;color:#f8fafc}
+.rq-target-multi-add{width:100%;min-height:54px;border-radius:1rem;font-weight:900;border:2px dashed #10b981;color:#047857;background:rgba(16,185,129,.08)}
+.dark .rq-target-multi-add{color:#6ee7b7;border-color:#059669}
+</style>
+
 <script>
 (function(){
   // Final UI cleanup: remove only the requested menu items. Keep Live Laporan WA and Laporan Grup WA.
@@ -6920,25 +6958,20 @@ html.dark #rqSafetyBackupBox #rqSafetyBackupLocation b{color:#ecfdf5 !important}
  window.onInlineTargetSurahChange=(type,name,slot='legacy')=>limit(type,name,slot);
  window.saveInputTarget=(type,name,slot='legacy')=>{const x=ids(type,name,slot),j=String(document.getElementById(x.j)?.value||'').trim(),surat=String(document.getElementById(x.s)?.value||'').trim(),aEl=document.getElementById(x.a),ayat=Number(aEl?.value||0),kEl=x.k?document.getElementById(x.k):null,kali=Number(kEl?.value||0),mulai=String(document.getElementById(x.mulai)?.value||'').trim(),selesai=String(document.getElementById(x.selesai)?.value||'').trim(),q=(window.surahList||[]).find(z=>String(z.name)===surat);if(!q)return window.showToast?.('Pilih nama surat untuk target.','error');if(!Number.isInteger(ayat)||ayat<1||ayat>Number(q.ayat))return window.showToast?.(`Target ayat harus 1–${q.ayat} untuk ${q.name}.`,'error');if(type==='murojaah'&&(!Number.isInteger(kali)||kali<1))return window.showToast?.('Isi target setoran minimal 1.','error');if(!mulai||!selesai)return window.showToast?.('Isi tanggal mulai dan tanggal selesai.','error');if(selesai<mulai)return window.showToast?.('Tanggal selesai tidak boleh sebelum tanggal mulai.','error');const db=getDB();db[type]=db[type]||{};if(type==='hafalan'){const prev=db.hafalan?.[name]||{};const legacy=prev.ayat&&!prev.jangkaPendek&&!prev.akanDatang?prev:null;const short=prev.jangkaPendek||legacy||null,future=prev.akanDatang||null;const prevSlot=slot==='jangkaPendek'?short:future;const sameTarget=!!(prevSlot&&String(prevSlot.surat||'').trim()===surat&&String(prevSlot.juz||'').trim()===j&&String(prevSlot.mulai||'')===mulai&&String(prevSlot.selesai||'')===selesai);const createdAt=sameTarget?(prevSlot.createdAt||prevSlot.updatedAt||new Date().toISOString()):new Date().toISOString();const newTarget={juz:j,surat,ayat,kali:0,mulai,selesai,createdAt,updatedAt:new Date().toISOString()};const other=slot==='jangkaPendek'?future:short;if(other?.mulai&&other?.selesai){const a=dateKey(mulai),b=dateKey(selesai),oa=dateKey(other.mulai),ob=dateKey(other.selesai);if(a<=ob&&oa<=b)return window.showToast?.('Periode target tidak boleh tumpang tindih. Pisahkan Target Jangka Pendek dan Target Yang Akan Datang.','error');}db.hafalan[name]={jangkaPendek:slot==='jangkaPendek'?newTarget:short,akanDatang:slot==='akanDatang'?newTarget:future};}else{db[type][name]={juz:j,surat,ayat,kali:type==='murojaah'?kali:0,mulai,selesai,updatedAt:new Date().toISOString()};}putDB(db);load(type,name,slot);window.showToast?.(`Target ${type==='hafalan'?(slot==='akanDatang'?'Yang Akan Datang':'Jangka Pendek'):'Muroja’ah'} berhasil disimpan.`,'success')};
  window.deleteInputTarget=(type,name,slot='legacy')=>{const db=getDB();if(type==='hafalan'&&(slot==='jangkaPendek'||slot==='akanDatang')){if(db.hafalan?.[name])db.hafalan[name][slot]=null;}else if(db[type])delete db[type][name];putDB(db);load(type,name,slot);window.showToast?.('Target dihapus.','success')};
- window.getTargetReportText=(type,name)=>{const fmtPeriode=(mulai,selesai)=>{if(!mulai||!selesai)return '-';const d1=new Date(`${mulai}T00:00:00`),d2=new Date(`${selesai}T00:00:00`),hari=Math.max(0,Math.round((d2-d1)/86400000));const f=v=>{const d=new Date(`${v}T00:00:00`),m=['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];return `${d.getDate()} ${m[d.getMonth()]}`};return `${f(mulai)} s.d ${f(selesai)} ( ${hari} Hari )`};if(type==='hafalan'){const d=getDB().hafalan?.[name];if(!d)return '';const a=d.jangkaPendek||null,b=d.akanDatang||null;const f=(label,t)=>{if(!t)return '';const q=calc('hafalan',name,t),desc=[t.juz?`Juz ${t.juz}`:'',t.surat||''].filter(Boolean).join(' · ');return [`• *${label}:* ${desc||'Belum ditentukan'}`,`• *Target Sampai ayat ke :* ${q.ayatTarget}`,`• *Realisasi sudah sampai ayat ke :* ${q.lastAyat||0}`,`• *Progress:* ${q.ayatPct}%`,`• *Periode:*  ${fmtPeriode(t.mulai,t.selesai)}`].join('\n')};return [f('Target Saat ini',a),f('Target Yang Akan Datang',b)].filter(Boolean).join('\n\n');}const t=getDB()[type]?.[name];if(!t)return '';const q=calc(type,name,t),desc=[t.juz?`Juz ${t.juz}`:'',t.surat||''].filter(Boolean).join(' · ');return [`• *Target Saat ini:* ${desc||'Belum ditentukan'}`,`• *Target Sampai ayat ke :* ${q.ayatTarget}`,`• *Realisasi sudah sampai ayat ke :* ${q.lastAyat||0}`,`• *Progress:* ${q.pct}%`,q.setoranTarget?`• *Target Setoran:* ${q.setoranTarget}`:'',q.setoranReal?`• *Realisasi Setoran:* ${q.setoranReal}`:'',`• *Periode:*  ${fmtPeriode(t.mulai,t.selesai)}`].filter(Boolean).join('\n');};
+ const targetItemList=t=>Array.isArray(t?.items)&&t.items.length?t.items:(t&&String(t.surat||'').trim()&&Number(t.ayat)>0?[{surat:t.surat,ayat:Number(t.ayat),juz:t.juz||''}]:[]);
+ const targetItemsLabel=t=>targetItemList(t).map(x=>`${x.surat||'-'} (${Number(x.ayat)||0} ayat)`).join(' · ');
+ const targetItemsJuz=t=>[...new Set(targetItemList(t).map(x=>String(x.juz||'').trim()).filter(Boolean))].join(', ');
+ window.getTargetReportText=(type,name)=>{const fmtPeriode=(mulai,selesai)=>{if(!mulai||!selesai)return '-';const d1=new Date(`${mulai}T00:00:00`),d2=new Date(`${selesai}T00:00:00`),hari=Math.max(0,Math.round((d2-d1)/86400000));const f=v=>{const d=new Date(`${v}T00:00:00`),m=['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];return `${d.getDate()} ${m[d.getMonth()]}`};return `${f(mulai)} s.d ${f(selesai)} ( ${hari} Hari )`};if(type==='hafalan'){const d=getDB().hafalan?.[name];if(!d)return '';const a=d.jangkaPendek||null,b=d.akanDatang||null;const f=(label,t)=>{if(!t)return '';const q=calc('hafalan',name,t),desc=targetItemsLabel(t),juz=targetItemsJuz(t);return [`• *${label}:* ${desc||'Belum ditentukan'}`,juz?`• *Juz:* ${juz}`:'',`• *Total Target Ayat:* ${q.ayatTarget}`,`• *Total Realisasi Ayat:* ${q.ayatReal}`,`• *Progress:* ${q.ayatPct}%`,`• *Periode:*  ${fmtPeriode(t.mulai,t.selesai)}`].filter(Boolean).join('\n')};return [f('Target Saat ini',a),f('Target Yang Akan Datang',b)].filter(Boolean).join('\n\n');}const t=getDB()[type]?.[name];if(!t)return '';const q=calc(type,name,t),desc=targetItemsLabel(t),juz=targetItemsJuz(t);return [`• *Target Saat ini:* ${desc||'Belum ditentukan'}`,juz?`• *Juz:* ${juz}`:'',`• *Total Target Ayat:* ${q.ayatTarget}`,`• *Total Realisasi Ayat:* ${q.ayatReal}`,`• *Progress:* ${q.pct}%`,q.setoranTarget?`• *Target Setoran:* ${q.setoranTarget}`:'',q.setoranReal?`• *Realisasi Setoran:* ${q.setoranReal}`:'',`• *Periode:*  ${fmtPeriode(t.mulai,t.selesai)}`].filter(Boolean).join('\n');};
  window.getTargetReportBlock=name=>{
   const db=getDB();
   const fmtP=(mulai,selesai)=>{if(!mulai||!selesai)return '-';const d1=new Date(`${mulai}T00:00:00`),d2=new Date(`${selesai}T00:00:00`),hari=Math.max(0,Math.round((d2-d1)/86400000));const f=v=>{const d=new Date(`${v}T00:00:00`),m=['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];return `${d.getDate()} ${m[d.getMonth()]}`};return `${f(mulai)} s.d ${f(selesai)} ( ${hari} Hari )`};
-  const validTarget=t=>!!(t&&String(t.surat||'').trim()&&Number(t.ayat)>0&&String(t.mulai||'').trim()&&String(t.selesai||'').trim());
+  const validTarget=t=>!!(targetItemList(t).length&&String(t.mulai||'').trim()&&String(t.selesai||'').trim());
   const blocks=[];
   const d=db.hafalan?.[name]||{};
-  const addHafalan=(label,t)=>{
-    if(!validTarget(t))return;
-    const q=calc('hafalan',name,t),desc=[t.juz?`Juz ${t.juz}`:'',t.surat||''].filter(Boolean).join(' · ');
-    blocks.push([`• *${label}:* ${desc}`,`• *Target Sampai ayat ke :* ${q.ayatTarget}`,`• *Realisasi sudah sampai ayat ke :* ${q.lastAyat||0}`,`• *Progress:* ${q.ayatPct}%`,`• *Periode:*  ${fmtP(t.mulai,t.selesai)}`].join('\n'));
-  };
-  addHafalan('Target Saat ini',d.jangkaPendek);
-  addHafalan('Target Yang Akan Datang',d.akanDatang);
+  const addHafalan=(label,t)=>{if(!validTarget(t))return;const q=calc('hafalan',name,t),desc=targetItemsLabel(t),juz=targetItemsJuz(t);blocks.push([`• *${label}:* ${desc}`,juz?`• *Juz:* ${juz}`:'',`• *Total Target Ayat:* ${q.ayatTarget}`,`• *Total Realisasi Ayat:* ${q.ayatReal}`,`• *Progress:* ${q.ayatPct}%`,`• *Periode:*  ${fmtP(t.mulai,t.selesai)}`].filter(Boolean).join('\n'));};
+  addHafalan('Target Saat ini',d.jangkaPendek); addHafalan('Target Yang Akan Datang',d.akanDatang);
   const m=db.murojaah?.[name];
-  if(validTarget(m)){
-    const q=calc('murojaah',name,m),desc=[m.juz?`Juz ${m.juz}`:'',m.surat||''].filter(Boolean).join(' · ');
-    blocks.push([`• *Target Muroja’ah:* ${desc}`,`• *Target Sampai ayat ke :* ${q.ayatTarget}`,`• *Realisasi sudah sampai ayat ke :* ${q.lastAyat||0}`,`• *Progress:* ${q.pct}%`,`• *Periode:*  ${fmtP(m.mulai,m.selesai)}`].join('\n'));
-  }
+  if(validTarget(m)){const q=calc('murojaah',name,m),desc=targetItemsLabel(m),juz=targetItemsJuz(m);blocks.push([`• *Target Muroja’ah:* ${desc}`,juz?`• *Juz:* ${juz}`:'',`• *Total Target Ayat:* ${q.ayatTarget}`,`• *Total Realisasi Ayat:* ${q.ayatReal}`,`• *Progress:* ${q.pct}%`,`• *Periode:*  ${fmtP(m.mulai,m.selesai)}`].filter(Boolean).join('\n'));}
   return blocks.length?`🎯 *Target & Perkembangan:*\n${blocks.join('\n\n')}`:'';
 };
  window.refreshInlineTargets=()=>{(window.santriList||[]).forEach(s=>{const n=String(s?.name||'').trim();if(document.getElementById(ids('hafalan',n,'jangkaPendek').j))load('hafalan',n,'jangkaPendek');if(document.getElementById(ids('hafalan',n,'akanDatang').j))load('hafalan',n,'akanDatang');if(document.getElementById(ids('murojaah',n).j))load('murojaah',n)})};
@@ -6961,15 +6994,14 @@ html.dark #rqSafetyBackupBox #rqSafetyBackupLocation b{color:#ecfdf5 !important}
   function ns(v){return String(v??'').trim().toLowerCase().replace(/\s+/g,' ');}
   function rowDate(r){return dkey(r?.tanggal)||dkey(r?.date)||dkey(r?.rawDate)||dkey(r?.timestamp)||((Number(r?.rawTime)||0)?dkey(new Date(Number(r.rawTime))):'');}
   function slots(r){return Array.isArray(r?.slots)?r.slots.filter(x=>x&&x.item&&x.item!=='-'):[];}
-  function matchSlot(sl,t){const a=ns(sl?.item),b=ns(t?.surat);return !b||a===b||a.includes(b)||b.includes(a);}
+  function matchSlot(sl,t){const a=ns(sl?.item),b=ns(t?.surat);return !b||a===b;}
   function rowsFor(name,t){const a=dkey(t?.mulai),b=dkey(t?.selesai);return hist(name).filter(r=>{const dt=rowDate(r),ss=slots(r);return dt&&a&&b&&dt>=a&&dt<=b&&ss.some(sl=>matchSlot(sl,t));}).sort((x,y)=>rowDate(x).localeCompare(rowDate(y)));}
   function ayatSetFor(rows,t){const set=new Set();rows.forEach(r=>slots(r).forEach(sl=>{if(!matchSlot(sl,t))return;const a=Number(sl.start),b=Number(sl.end);if(Number.isFinite(a)){if(Number.isFinite(b)&&b>=a){for(let n=a;n<=b;n++)set.add(n);}else set.add(a);}}));return set;}
   function calcTarget(name,t){if(!t)return {real:0,target:0,pct:0,rows:[],completeDate:'',lastAyat:0};const q=window.rqTargetEngine?.calc('hafalan',name,t)||{};return {real:Number(q.ayatCount)||0,target:Number(q.ayatTarget)||0,pct:Number(q.pct)||0,rows:q.rows||[],completeDate:q.completeDate||'',lastAyat:Number(q.lastAyat)||0};}
   function statusResult(t,q){if(!t)return {status:'Belum Mulai',result:'Belum dinilai'};const today=dkey(new Date()),mulai=dkey(t.mulai),selesai=dkey(t.selesai);if(today<mulai)return {status:'Belum Mulai',result:'Belum dinilai'};if(q.pct>=100)return {status:'Selesai',result:'Berhasil'};if(today>selesai)return {status:'Terlewat',result:'Tidak Berhasil'};return {status:'Sedang Berjalan',result:'Belum dinilai'};}
   function fmtDate(v){const d=dkey(v);if(!d)return '-';const [y,m,day]=d.split('-');return `${day}-${m}-${y}`;}
   function targetText(name){const db=targetDB(),d=db.hafalan?.[name]||{};let legacy=d.ayat&&!d.jangkaPendek&&!d.akanDatang?d:null;const short=d.jangkaPendek||legacy||null,future=d.akanDatang||null;let out=`LAPORAN TARGET HAFALAN\nNama: ${name}\n\n`;
-    const block=(label,t)=>{if(!t)return `${label}\nBelum ada target.\n`;const q=calcTarget(name,t),sr=statusResult(t,q);let s=`${label}\nSurat: ${t.surat||'-'}\nJuz: ${t.juz||'-'}\nTarget: ${q.target} ayat\nRealisasi: ${q.real}/${q.target} ayat
-Sampai ayat: ${q.lastAyat||0}\nProgress: ${q.pct}%\nPeriode: ${fmtDate(t.mulai)} s.d. ${fmtDate(t.selesai)}\nStatus: ${sr.status}\nHasil: ${sr.result}`;if(q.completeDate)s+=`\nTuntas: ${fmtDate(q.completeDate)}`;return s+'\n';};
+    const block=(label,t)=>{if(!t)return `${label}\nBelum ada target.\n`;const q=calcTarget(name,t),sr=statusResult(t,q),items=Array.isArray(t.items)&&t.items.length?t.items:[{surat:t.surat||'-',ayat:Number(t.ayat)||0,juz:t.juz||'-'}],suratText=items.map(x=>`${x.surat||'-'} (${Number(x.ayat)||0} ayat)`).join(' · '),juzText=[...new Set(items.map(x=>String(x.juz||'').trim()).filter(Boolean))].join(', ');let s=`${label}\nSurat: ${suratText}\nJuz: ${juzText||'-'}\nTarget: ${q.target} ayat\nRealisasi: ${q.real}/${q.target} ayat\nProgress: ${q.pct}%\nPeriode: ${fmtDate(t.mulai)} s.d. ${fmtDate(t.selesai)}\nStatus: ${sr.status}\nHasil: ${sr.result}`;if(q.completeDate)s+=`\nTuntas: ${fmtDate(q.completeDate)}`;return s+'\n';};
     out+=block('TARGET JANGKA PENDEK',short)+'\n'+block('TARGET YANG AKAN DATANG',future);return out.trim();}
   window.renderTargetReport=function(){const sel=document.getElementById('targetReportClassFilter'),grid=document.getElementById('targetReportSantriGrid'),ta=document.getElementById('targetReportPreview');if(!sel||!grid||!ta)return;if(!sel.options.length)sel.innerHTML=classes.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');sel.value=window.targetReportClass||classes[0]||'';const list=(window.santriList||[]).filter(s=>s.class===window.targetReportClass);if(!window.selectedTargetReportSantri||!list.some(s=>s.name===window.selectedTargetReportSantri))window.selectedTargetReportSantri=list[0]?.name||'';grid.innerHTML=list.length?list.map(s=>`<button type="button" onclick='window.selectTargetReportSantri(${JSON.stringify(s.name)})' class="p-3 rounded-2xl border-2 font-black text-xs sm:text-sm ${s.name===window.selectedTargetReportSantri?'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/40':'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800'}">${esc(s.name)}</button>`).join(''):'<div class="text-xs text-slate-400 font-bold col-span-full">Tidak ada santri pada kelas ini.</div>';ta.value=window.selectedTargetReportSantri?targetText(window.selectedTargetReportSantri):'Pilih santri untuk melihat laporan target.';}
   window.filterTargetReportClass=function(cls){window.targetReportClass=cls;window.selectedTargetReportSantri='';window.renderTargetReport();};
@@ -7092,4 +7124,111 @@ Sampai ayat: ${q.lastAyat||0}\nProgress: ${q.pct}%\nPeriode: ${fmtDate(t.mulai)}
 </script>
 
 </body>
-</html>
+</html>\n<script id="rq-target-multi-surah-logic">
+(function(){
+  const esc=v=>String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+  const key='rq_target_hafalan_murojaah_v2';
+  const norm=v=>String(v??'').trim().toLowerCase().replace(/\s+/g,' ');
+  const getDB=()=>{try{return JSON.parse(localStorage.getItem(key)||'{}')||{};}catch(_){return {}}};
+  const saveDB=db=>localStorage.setItem(key,JSON.stringify(db));
+  const getSurah=name=>(window.surahList||[]).find(x=>norm(x.name)===norm(name));
+  const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+  function juzFor(surat,ayat){
+    const q=getSurah(surat), no=Number(q?.no), a=Math.max(1,Number(ayat)||1);
+    const starts=[[1,1],[2,142],[2,253],[3,93],[4,24],[4,148],[5,83],[6,111],[7,88],[8,41],[9,93],[11,6],[12,53],[15,1],[17,1],[18,75],[21,1],[23,1],[25,21],[27,56],[29,46],[33,31],[36,28],[39,32],[41,47],[46,1],[51,31],[58,1],[67,1],[78,1]];
+    let j=1; for(let i=0;i<starts.length;i++){const [sn,sa]=starts[i];if(no>sn||(no===sn&&a>=sa))j=i+1;else break;} return j;
+  }
+  function setJuzForRow(row){
+    const surat=row.querySelector('[data-rq-surah]')?.value||'', ayat=Number(row.querySelector('[data-rq-ayat]')?.value||1), out=row.querySelector('[data-rq-juz]');
+    if(out)out.value=surat?`Juz ${juzFor(surat,ayat)}`:'';
+  }
+  function search(row,value){
+    const box=row.querySelector('[data-rq-dropdown]'); if(!box)return;
+    const list=(window.surahList||[]).filter(x=>{const v=norm(value);return !v||norm(x.name).includes(v)||String(x.no)===String(v)}).slice(0,20);
+    box.innerHTML=list.map(x=>`<button type="button" data-rq-pick="${esc(x.name)}" class="w-full text-left p-3 font-black text-sm hover:bg-emerald-50 dark:hover:bg-slate-800 border-b border-slate-100 dark:border-slate-800">${x.no}. ${esc(x.name)} <span class="text-xs text-slate-400">(${x.ayat} ayat)</span></button>`).join('');
+    box.classList.toggle('hidden',!list.length);
+  }
+  function makeRow(name,slot,data={}){
+    const id=uid(), q=getSurah(data.surat), max=q?.ayat||'';
+    const row=document.createElement('div'); row.className='rq-target-multi-row'; row.dataset.rqRow=id;
+    row.innerHTML=`<div class="flex items-center justify-between gap-2 mb-2"><b class="text-[11px] text-emerald-700 dark:text-emerald-300">Surat Tambahan</b><button type="button" data-rq-remove class="text-rose-600 font-black text-xs">Hapus</button></div><div class="rq-target-multi-row-grid"><label>Juz Otomatis<input data-rq-juz readonly placeholder="Otomatis"></label><label>Nama Surat — Otomatis<select data-rq-surah><option value="">-- Pilih Surat --</option>${(window.surahList||[]).map(x=>`<option value="${esc(x.name)}" ${norm(x.name)===norm(data.surat)?'selected':''}>${x.no}. ${esc(x.name)} (${x.ayat} ayat)</option>`).join('')}</select></label><label>Nama Surat — Manual / Cari<input data-rq-search autocomplete="off" value="${esc(data.surat||'')}" placeholder="Ketik nama surat..."><div data-rq-dropdown class="hidden mt-1 max-h-56 overflow-y-auto bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-700 rounded-xl shadow-xl"></div></label><label>Target ayat<input data-rq-ayat type="number" min="1" max="${max}" inputmode="numeric" value="${Number(data.ayat)>0?Number(data.ayat):''}" placeholder="Jumlah ayat"></label></div>`;
+    const sel=row.querySelector('[data-rq-surah]'), searchInput=row.querySelector('[data-rq-search]'), ay=row.querySelector('[data-rq-ayat]');
+    const choose=surat=>{sel.value=surat;searchInput.value=surat;const q=getSurah(surat);if(q){ay.max=q.ayat;if(Number(ay.value)>q.ayat)ay.value=q.ayat;}setJuzForRow(row);row.querySelector('[data-rq-dropdown]').classList.add('hidden');};
+    sel.addEventListener('change',()=>choose(sel.value));
+    searchInput.addEventListener('input',()=>search(row,searchInput.value));
+    searchInput.addEventListener('focus',()=>search(row,searchInput.value));
+    row.querySelector('[data-rq-dropdown]').addEventListener('click',e=>{const b=e.target.closest('[data-rq-pick]');if(b)choose(b.getAttribute('data-rq-pick'));});
+    ay.addEventListener('input',()=>{const q=getSurah(sel.value);if(q&&Number(ay.value)>q.ayat)ay.value=q.ayat;setJuzForRow(row);});
+    row.querySelector('[data-rq-remove]').addEventListener('click',()=>row.remove());
+    setJuzForRow(row); return row;
+  }
+  function container(name,slot){return document.getElementById(`inputTargetHafalan${slot==='jangkaPendek'?'JangkaPendek':'AkanDatang'}Multi_${name}`)}
+  window.addTargetSurahRow=(name,slot,data={})=>{const c=container(name,slot);if(c)c.appendChild(makeRow(name,slot,data));};
+  function firstItem(name,slot){
+    const p=slot==='jangkaPendek'?'JangkaPendek':'AkanDatang', base=`inputTargetHafalan${p}`;
+    const surat=document.getElementById(`${base}Surat_${name}`)?.value||'', ayat=Number(document.getElementById(`${base}Ayat_${name}`)?.value||0), juz=document.getElementById(`${base}Juz_${name}`)?.value||'';
+    return surat&&ayat>0?{surat,ayat,juz}:null;
+  }
+  function collect(name,slot){
+    const items=[], first=firstItem(name,slot); if(first)items.push(first);
+    const c=container(name,slot); if(c)c.querySelectorAll('[data-rq-row]').forEach(()=>{});
+    if(c)c.querySelectorAll('.rq-target-multi-row').forEach(row=>{const surat=row.querySelector('[data-rq-surah]')?.value||'',ayat=Number(row.querySelector('[data-rq-ayat]')?.value||0),juz=row.querySelector('[data-rq-juz]')?.value||'';if(surat&&ayat>0)items.push({surat,ayat,juz});});
+    const seen=new Set(); return items.filter(x=>{const k=norm(x.surat);if(seen.has(k))return false;seen.add(k);return true;});
+  }
+  function fillExisting(name,slot,items){
+    const c=container(name,slot); if(!c)return; c.innerHTML=''; (items||[]).slice(1).forEach(x=>c.appendChild(makeRow(name,slot,x)));
+  }
+  function renderMultiSummary(name,slot){
+    const p=slot==='jangkaPendek'?'JangkaPendek':'AkanDatang', base=`inputTargetHafalan${p}`, c=container(name,slot), info=document.getElementById(`${base}Info_${name}`);
+    const items=collect(name,slot); if(info&&items.length)info.innerHTML=`<b>Total target: ${items.reduce((n,x)=>n+Number(x.ayat||0),0)} ayat</b> · ${items.map(x=>`${esc(x.surat)} (${x.ayat})`).join(' · ')}`;
+  }
+  function syncFromSaved(name,slot){
+    const db=getDB(), t=db.hafalan?.[name]?.[slot]; if(!t)return; const items=Array.isArray(t.items)&&t.items.length?t.items:[{surat:t.surat,ayat:t.ayat,juz:t.juz}];
+    const first=items[0]; const p=slot==='jangkaPendek'?'JangkaPendek':'AkanDatang',base=`inputTargetHafalan${p}`;
+    const sel=document.getElementById(`${base}Surat_${name}`), searchInput=document.getElementById(`${base}SuratSearch_${name}`), ay=document.getElementById(`${base}Ayat_${name}`), juz=document.getElementById(`${base}Juz_${name}`);
+    if(first){if(sel)sel.value=first.surat||'';if(searchInput)searchInput.value=first.surat||'';if(ay)ay.value=first.ayat||'';if(juz)juz.value=first.juz||`Juz ${juzFor(first.surat,first.ayat)}`;} fillExisting(name,slot,items); renderMultiSummary(name,slot);
+  }
+  const oldSave=window.saveInputTarget;
+  window.saveInputTarget=function(type,name,slot='legacy'){
+    if(type!=='hafalan'||!['jangkaPendek','akanDatang'].includes(slot))return oldSave?.apply(this,arguments);
+    const items=collect(name,slot); if(!items.length)return window.showToast?.('Pilih minimal 1 surat dan isi target ayat.','error');
+    const p=slot==='jangkaPendek'?'JangkaPendek':'AkanDatang',base=`inputTargetHafalan${p}`;
+    const mulai=String(document.getElementById(`${base}Mulai_${name}`)?.value||'').trim(), selesai=String(document.getElementById(`${base}Selesai_${name}`)?.value||'').trim();
+    if(!mulai||!selesai)return window.showToast?.('Isi tanggal mulai dan tanggal selesai.','error');
+    if(selesai<mulai)return window.showToast?.('Tanggal selesai tidak boleh sebelum tanggal mulai.','error');
+    for(const item of items){const q=getSurah(item.surat);if(!q)return window.showToast?.(`Surat ${item.surat} tidak ditemukan.`,'error');if(!Number.isInteger(Number(item.ayat))||Number(item.ayat)<1||Number(item.ayat)>Number(q.ayat))return window.showToast?.(`Target ayat harus 1–${q.ayat} untuk ${q.name}.`,'error');item.juz=`Juz ${juzFor(item.surat,item.ayat)}`;}
+    const db=getDB();db.hafalan=db.hafalan||{};const prev=db.hafalan[name]||{};const prevSlot=prev[slot];const same=JSON.stringify((prevSlot?.items||[]).map(x=>[x.surat,x.ayat]))===JSON.stringify(items.map(x=>[x.surat,x.ayat]))&&prevSlot?.mulai===mulai&&prevSlot?.selesai===selesai;
+    const createdAt=same?(prevSlot.createdAt||prevSlot.updatedAt||new Date().toISOString()):new Date().toISOString();
+    const newTarget={...items[0],items,ayat:items.reduce((n,x)=>n+Number(x.ayat),0),juz:items[0].juz,surat:items[0].surat,mulai,selesai,kali:0,createdAt,updatedAt:new Date().toISOString()};
+    const other=slot==='jangkaPendek'?prev.akanDatang:prev.jangkaPendek;
+    if(other?.mulai&&other?.selesai){const a=mulai,b=selesai,oa=other.mulai,ob=other.selesai;if(a<=ob&&oa<=b)return window.showToast?.('Periode target tidak boleh tumpang tindih. Pisahkan Target Jangka Pendek dan Target Yang Akan Datang.','error');}
+    db.hafalan[name]={jangkaPendek:slot==='jangkaPendek'?newTarget:(prev.jangkaPendek||null),akanDatang:slot==='akanDatang'?newTarget:(prev.akanDatang||null)};saveDB(db);
+    try{window.refreshInlineTargets?.();}catch(_){}
+    syncFromSaved(name,slot); window.showToast?.(`Target ${slot==='akanDatang'?'Yang Akan Datang':'Jangka Pendek'} berhasil disimpan (${items.length} surat, ${newTarget.ayat} ayat target).`,'success');
+  };
+  const oldEngine=window.rqTargetEngine;
+  if(oldEngine){
+    const oldCalc=oldEngine.calc;
+    const oldRowsFor=oldEngine.rowsFor;
+    oldEngine.rowsFor=function(type,name,t){
+      if(type!=='hafalan'||!Array.isArray(t?.items)||!t.items.length)return oldRowsFor(type,name,t);
+      let rows=[]; try{const k='rq_history_hafalan'; rows=JSON.parse(localStorage.getItem(k)||'[]').filter(x=>norm(x?.name)===norm(name));}catch(_){}
+      const dk=v=>{if(!v)return '';const m=String(v).match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);if(m)return `${m[1]}-${String(m[2]).padStart(2,'0')}-${String(m[3]).padStart(2,'0')}`;const d=new Date(v);return isNaN(d.getTime())?'':`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
+      const rt=r=>{const n=Number(r?.rawTime);if(Number.isFinite(n)&&n>0)return n;const d=Date.parse(r?.timestamp||r?.date||r?.tanggal||r?.rawDate||'');return Number.isFinite(d)?d:0};
+      const start=dk(t.mulai),end=dk(t.selesai),created=Date.parse(t.createdAt||t.updatedAt||'')||0, names=t.items.map(x=>norm(x.surat));
+      return rows.filter(r=>{const d=dk(r?.tanggal)||dk(r?.date)||dk(r?.rawDate)||dk(r?.timestamp)||((Number(r?.rawTime)||0)?dk(new Date(Number(r.rawTime))):'');if(!d||d<start||d>end)return false;const ss=Array.isArray(r?.slots)?r.slots:[];const hit=ss.length?ss.some(sl=>names.includes(norm(sl?.item))||names.some(n=>norm(sl?.item).includes(n)||n.includes(norm(sl?.item)))):names.some(n=>norm(r?.detail).includes(n));if(!hit)return false;const time=rt(r);return !(created&&time&&time<created);}).sort((a,b)=>rt(a)-rt(b));
+    };
+    oldEngine.calc=function(type,name,t){
+      if(type!=='hafalan'||!Array.isArray(t?.items)||!t.items.length)return oldCalc(type,name,t);
+      const rows=oldEngine.rowsFor(type,name,t)||[], items=t.items, norm2=norm; let totalTarget=0,totalReal=0,lastAyat=0;
+      const itemProgress=items.map(item=>{const target=Number(item.ayat)||0,totalSet=new Set();for(const row of rows){const ss=Array.isArray(row?.slots)?row.slots:[];if(ss.length){ss.forEach(sl=>{const n=norm2(sl?.item),tar=norm2(item.surat);if(n===tar){const a=Number(sl.start),b=Number(sl.end);if(Number.isFinite(a)&&a>=1){if(Number.isFinite(b)&&b>=a){for(let x=a;x<=b;x++)totalSet.add(x)}else totalSet.add(a)}}})}else if(norm2(row?.detail).split(/[,;|·\n]/).map(x=>norm2(x)).some(x=>x===norm2(item.surat))){const m=String(row.detail||'').matchAll(/(?:ayat|ay)[^0-9]*(\d+)(?:\s*[-–]\s*(\d+))?/gi);for(const z of m){const a=Number(z[1]),b=Number(z[2]||z[1]);if(Number.isFinite(a)&&a>=1&&Number.isFinite(b)&&b>=a)for(let x=a;x<=b;x++)totalSet.add(x)}}}for(const x of [...totalSet])if(x>target)totalSet.delete(x);const real=Math.min(target,totalSet.size),pct=target?Math.min(100,Math.round(real/target*100)):0,last=target?Math.min(target,totalSet.size?Math.max(...totalSet):0):0;totalTarget+=target;totalReal+=real;return {surat:item.surat,ayatTarget:target,ayatReal:real,pct,lastAyat:last,juz:item.juz||''}});
+      const ayatPct=totalTarget?Math.min(100,Math.round(totalReal/totalTarget*100)):0; return {ayatReal:totalReal,ayatTarget:totalTarget,ayatPct,pct:ayatPct,ayatCount:totalReal,lastAyat,rows,itemProgress,setoranReal:rows.length,setoranTarget:0,setoranPct:0,completeDate:''};
+    };
+  }
+  function boot(){
+    (window.santriList||[]).forEach(s=>{const n=String(s?.name||'').trim();['jangkaPendek','akanDatang'].forEach(slot=>syncFromSaved(n,slot));});
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,350));else setTimeout(boot,350);
+  document.addEventListener('input',e=>{if(e.target?.matches?.('[data-rq-search]')){const row=e.target.closest('.rq-target-multi-row');if(row)search(row,e.target.value)}if(e.target?.matches?.('[data-rq-ayat]')){const row=e.target.closest('.rq-target-multi-row');if(row)setJuzForRow(row);}});
+})();
+</script>\n

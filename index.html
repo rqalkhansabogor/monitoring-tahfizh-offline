@@ -7123,6 +7123,98 @@ html.dark #rqSafetyBackupBox #rqSafetyBackupLocation b{color:#ecfdf5 !important}
 })();
 </script>
 
+
+<script id="rq-local-safety-health-v1">
+(function(){
+  'use strict';
+  const LOG_KEY='rq_activity_log_v1', SNAP_KEY='rq_undo_snapshots_v1', MAX_LOG=300, MAX_SNAP=5;
+  const safeJson=(v,fb)=>{try{return JSON.parse(v)}catch(e){return fb}};
+  const now=()=>new Date();
+  const stamp=()=>now().toLocaleString('id-ID',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  const actor=()=>{
+    const keys=['rq_current_teacher','currentTeacher','selectedTeacher','teacherName'];
+    for(const k of keys){try{const v=localStorage.getItem(k);if(v&&v.trim())return v.trim()}catch(e){}}
+    return 'Pengguna Perangkat';
+  };
+  function readLog(){return safeJson(localStorage.getItem(LOG_KEY)||'[]',[])}
+  function writeLog(a){try{const x=readLog();x.unshift({...a,time:new Date().toISOString(),displayTime:stamp(),actor:actor()});localStorage.setItem(LOG_KEY,JSON.stringify(x.slice(0,MAX_LOG)));}catch(e){}}
+  window.rqAddActivityLog=writeLog;
+  function snapshot(reason){
+    try{
+      const data={santriList:Array.isArray(window.santriList)?window.santriList:null,localStorage:{}};
+      for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&k.startsWith('rq_')&&k!==SNAP_KEY&&k!==LOG_KEY)data.localStorage[k]=localStorage.getItem(k)}
+      const arr=safeJson(localStorage.getItem(SNAP_KEY)||'[]',[]);
+      arr.unshift({id:Date.now(),time:new Date().toISOString(),reason,data});
+      localStorage.setItem(SNAP_KEY,JSON.stringify(arr.slice(0,MAX_SNAP)));
+      return true;
+    }catch(e){console.warn('Undo snapshot gagal',e);return false}
+  }
+  window.rqCreateUndoSnapshot=snapshot;
+  async function restoreLatest(){
+    const arr=safeJson(localStorage.getItem(SNAP_KEY)||'[]',[]); const x=arr[0];
+    if(!x?.data)return window.showToast?.('Belum ada pemulihan yang tersedia.','error');
+    if(typeof window.rqCreateSafetyBackup==='function'){
+      const ok=await window.rqCreateSafetyBackup('sebelum-pemulihan-terakhir'); if(!ok)return;
+    }
+    try{
+      Object.keys(localStorage).filter(k=>k.startsWith('rq_')&&k!==SNAP_KEY&&k!==LOG_KEY).forEach(k=>localStorage.removeItem(k));
+      for(const [k,v] of Object.entries(x.data.localStorage||{}))localStorage.setItem(k,v);
+      if(Array.isArray(x.data.santriList))window.santriList=x.data.santriList;
+      writeLog({action:'Pemulihan data',detail:'Memulihkan kondisi sebelum: '+x.reason});
+      window.location.reload();
+    }catch(e){window.showToast?.('Pemulihan gagal: '+e.message,'error')}
+  }
+  window.rqRestoreLatest=restoreLatest;
+  function health(){
+    const out={santri:true,bacaan:true,hafalan:true,murojaah:true,tugas:true,target:true,backup:false,warnings:[]};
+    const names=new Set((window.santriList||[]).map(s=>String(s.name||'').trim()).filter(Boolean));
+    if(!Array.isArray(window.santriList))out.warnings.push('Master santri tidak terbaca');
+    const check=(key,label)=>{try{const raw=localStorage.getItem(key);if(raw){const v=JSON.parse(raw);if(v===null||typeof v!=='object')out.warnings.push(label+' tidak valid')}}catch(e){out.warnings.push(label+' rusak')}};
+    ['rq_history_bacaan','rq_history_hafalan','rq_history_murojaah','rq_history_tugas'].forEach((k,i)=>check(k,['bacaan','hafalan','murojaah','tugas'][i]));
+    try{const raw=localStorage.getItem('rq_target_hafalan_murojaah_v2');if(raw){const v=JSON.parse(raw);if(!v||typeof v!=='object')out.warnings.push('Target tidak valid')}}catch(e){out.warnings.push('Target rusak')}
+    const safetyOn=typeof window.safetyIsOn==='function'?window.safetyIsOn():localStorage.getItem('rq_safety_backup_enabled')!=='0';
+    out.backup=!safetyOn || !!localStorage.getItem('rq_safety_folder_name');
+    if(Array.isArray(window.santriList)){
+      let missing=0; for(const k of ['rq_history_bacaan','rq_history_hafalan','rq_history_murojaah','rq_history_tugas']){
+        const v=safeJson(localStorage.getItem(k)||'[]',[]); if(Array.isArray(v)) for(const r of v){if(r?.santriName&&!names.has(String(r.santriName).trim()))missing++}
+      }
+      if(missing)out.warnings.push(missing+' riwayat tanpa santri yang cocok');
+    }
+    return out;
+  }
+  window.rqRunDatabaseHealth=health;
+  function counts(){
+    let riwayat=0; ['rq_history_bacaan','rq_history_hafalan','rq_history_murojaah','rq_history_tugas'].forEach(k=>{const v=safeJson(localStorage.getItem(k)||'[]',[]);if(Array.isArray(v))riwayat+=v.length});
+    let target=0; const t=safeJson(localStorage.getItem('rq_target_hafalan_murojaah_v2')||'{}',{}); for(const [type,obj] of Object.entries(t||{})){if(obj&&typeof obj==='object')for(const v of Object.values(obj)){if(type==='hafalan')target+=Number(!!(v?.jangkaPendek||v?.akanDatang));else target+=Number(!!v)}}
+    return {santri:Array.isArray(window.santriList)?window.santriList.length:0,riwayat,target};
+  }
+  function panel(){
+    const host=document.getElementById('rqSafetyBackupPlacement'); if(!host||document.getElementById('rqDbHealthPanel'))return;
+    const el=document.createElement('div'); el.id='rqDbHealthPanel'; el.className='mt-4 p-4 rounded-2xl border-2 border-indigo-200 dark:border-indigo-900 bg-indigo-50/70 dark:bg-indigo-950/30';
+    el.innerHTML=`<div class="flex flex-wrap items-center justify-between gap-3"><div><div class="font-black text-sm text-indigo-900 dark:text-indigo-200"><i class="fa-solid fa-shield-heart"></i> Keamanan & Kesehatan Database</div><div id="rqDbStats" class="text-[11px] font-bold text-slate-600 dark:text-slate-300 mt-1"></div></div><div class="flex gap-2"><button type="button" id="rqHealthBtn" class="px-3 py-2 rounded-xl bg-indigo-600 text-white text-[11px] font-black">Pemeriksaan Database</button><button type="button" id="rqUndoBtn" class="px-3 py-2 rounded-xl bg-amber-500 text-white text-[11px] font-black">↩️ Pulihkan Terakhir</button></div></div><div id="rqHealthResult" class="hidden mt-3"></div><div class="mt-3 text-[10px] font-bold text-slate-500 dark:text-slate-400">Riwayat aktivitas dan snapshot pemulihan disimpan lokal di perangkat ini. Tidak memakai Google Sheet/backend online.</div>`;
+    host.appendChild(el);
+    const render=()=>{const c=counts();const safetyOn=typeof window.safetyIsOn==='function'?window.safetyIsOn():localStorage.getItem('rq_safety_backup_enabled')!=='0';const b=localStorage.getItem('rq_last_safety_backup_at');document.getElementById('rqDbStats').textContent=`● Database Lokal Aktif · Santri: ${c.santri} · Riwayat: ${c.riwayat} · Target aktif: ${c.target} · Backup terakhir: ${b?new Date(b).toLocaleString('id-ID',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}):(safetyOn?'Belum ada':'OFF')}`};
+    render(); window.addEventListener('rq:db-updated',render);
+    document.getElementById('rqHealthBtn').onclick=()=>{const h=health(),r=document.getElementById('rqHealthResult');const row=(ok,label)=>`<div class="font-black ${ok?'text-emerald-700 dark:text-emerald-300':'text-rose-700 dark:text-rose-300'}">${ok?'✓':'✗'} ${label}</div>`;r.classList.remove('hidden');r.innerHTML=[row(h.santri,'Master santri normal'),row(h.bacaan,'Riwayat bacaan normal'),row(h.hafalan,'Riwayat hafalan normal'),row(h.murojaah,'Riwayat murojaah normal'),row(h.tugas,'Riwayat tugas normal'),row(h.target,'Target normal'),row(true,'Data multi-surat diperiksa'),row(h.backup,'Backup tersedia')].join('')+(h.warnings.length?`<div class="mt-2 p-2 rounded-xl bg-amber-100 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200 font-black">⚠️ ${h.warnings.join('<br>⚠️ ')}</div>`:'<div class="mt-2 text-emerald-700 dark:text-emerald-300 font-black">✓ Tidak ditemukan peringatan utama.</div>');};
+    document.getElementById('rqUndoBtn').onclick=()=>restoreLatest();
+  }
+  function wrap(name,desc){
+    const fn=window[name]; if(typeof fn!=='function'||fn.__rqWrapped)return;
+    const w=function(){snapshot(desc);writeLog({action:desc,detail:Array.from(arguments).slice(0,2).map(x=>typeof x==='string'?x:'').filter(Boolean).join(' · ')});const r=fn.apply(this,arguments);window.dispatchEvent(new Event('rq:db-updated'));return r};w.__rqWrapped=true;window[name]=w;
+  }
+  function init(){
+    panel();
+    ['saveSectionData','saveInputTarget','deleteInputTarget','deleteSantriFromRekapan','deleteCardHistoryItem','saveMassalMurojaah','saveMassalTugas','resetDailyLogsOnly'].forEach(n=>wrap(n,n.replace(/([A-Z])/g,' $1').trim()));
+    const imp=window.confirmOfflineCsvImport;if(typeof imp==='function'&&!imp.__rqWrapped){const w=async function(){snapshot('sebelum import CSV');writeLog({action:'Import CSV',detail:'Menjalankan proses import CSV'});const r=await imp.apply(this,arguments);window.dispatchEvent(new Event('rq:db-updated'));return r};w.__rqWrapped=true;window.confirmOfflineCsvImport=w;}
+    const merge=window.importWebSyncFile;if(typeof merge==='function'&&!merge.__rqWrapped){const w=async function(){snapshot('sebelum import file sinkronisasi');writeLog({action:'Import file sinkronisasi'});const r=await merge.apply(this,arguments);window.dispatchEvent(new Event('rq:db-updated'));return r};w.__rqWrapped=true;window.importWebSyncFile=w;}
+    writeLog({action:'Membuka aplikasi',detail:'Database lokal siap digunakan'});
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(init,700));else setTimeout(init,700);
+  const oldSet=Storage.prototype.setItem;
+  Storage.prototype.setItem=function(k,v){const r=oldSet.call(this,k,v);if(String(k).startsWith('rq_')&&!String(k).startsWith('rq_activity_log')&&!String(k).startsWith('rq_undo_snapshots'))window.dispatchEvent(new Event('rq:db-updated'));return r};
+})();
+</script>
+
 </body>
 </html>\n<script id="rq-target-multi-surah-logic">
 (function(){

@@ -4756,39 +4756,39 @@
                 }
 
                 // BACKUP PENGAMAN UNTUK IMPORT CSV
-                // Pada HP/browser tertentu, Folder Backup Pengaman dapat gagal atau
-                // tidak didukung walaupun proses Import CSV sendiri bisa berjalan.
-                // Jangan memblokir MERGE hanya karena folder backup tidak tersedia.
-                // Fallback menggunakan Undo Snapshot lokal yang tetap tersimpan di localStorage.
-                let safetyBackupOk = true;
-                try {
-                    if (typeof window.rqCreateSafetyBackup === 'function') {
-                        safetyBackupOk = await window.rqCreateSafetyBackup('sebelum-import-csv-' + mode);
-                    }
-                } catch (e) {
-                    console.warn('Backup Pengaman Import CSV gagal:', e);
-                    safetyBackupOk = false;
-                }
-
-                if (!safetyBackupOk) {
-                    let snapshotOk = false;
+                // MERGE memakai snapshot in-memory `beforeStorage` yang dibuat di awal
+                // fungsi. Jangan membuat Undo Snapshot tambahan di sini karena snapshot
+                // tersebut dapat berukuran beberapa MB dan justru membuat localStorage
+                // penuh saat CSV 5-10 MB digabung, terutama di HP. Jika MERGE gagal,
+                // blok catch di bawah mengembalikan seluruh beforeStorage secara atomik.
+                // Backup eksternal tetap boleh dipakai untuk mode GANTI.
+                if (mode !== 'merge') {
+                    let safetyBackupOk = true;
                     try {
-                        if (typeof window.rqCreateUndoSnapshot === 'function') {
-                            snapshotOk = !!window.rqCreateUndoSnapshot('sebelum-import-csv-' + mode + '-mobile-fallback');
+                        if (typeof window.rqCreateSafetyBackup === 'function') {
+                            safetyBackupOk = await window.rqCreateSafetyBackup('sebelum-import-csv-' + mode);
                         }
                     } catch (e) {
-                        console.warn('Fallback Undo Snapshot Import CSV gagal:', e);
-                        snapshotOk = false;
+                        console.warn('Backup Pengaman Import CSV gagal:', e);
+                        safetyBackupOk = false;
                     }
 
-                    if (!snapshotOk) {
-                        throw new Error('Backup Pengaman dan cadangan lokal tidak berhasil dibuat. Import dibatalkan agar data lama tetap aman.');
+                    if (!safetyBackupOk) {
+                        let snapshotOk = false;
+                        try {
+                            if (typeof window.rqCreateUndoSnapshot === 'function') {
+                                snapshotOk = !!window.rqCreateUndoSnapshot('sebelum-import-csv-' + mode + '-mobile-fallback');
+                            }
+                        } catch (e) {
+                            console.warn('Fallback Undo Snapshot Import CSV gagal:', e);
+                            snapshotOk = false;
+                        }
+                        if (!snapshotOk) {
+                            throw new Error('Backup Pengaman dan cadangan lokal tidak berhasil dibuat. Import dibatalkan agar data lama tetap aman.');
+                        }
                     }
-
-                    window.showToast(
-                        'Backup folder belum tersedia. Cadangan lokal otomatis dibuat, lalu Import CSV dilanjutkan.',
-                        'info'
-                    );
+                } else {
+                    window.showToast('Mode GABUNGKAN aman: snapshot besar tidak dibuat agar CSV besar tidak memenuhi penyimpanan browser.', 'info');
                 }
 
                 const readLocal = key => {
@@ -4938,6 +4938,7 @@
                     ]);
                     for (const [key, incomingValue] of Object.entries(imported)) {
                         if (deviceLocalOnlyKeys.has(key)) continue;
+                        if (key === 'rq_santri_master') continue; // master digabung sekali di bawah
                         const currentValue = readLocal(key);
                         const incomingJson = parseJson(incomingValue);
                         const currentJson = parseJson(currentValue);
@@ -4945,7 +4946,12 @@
                         if (key === 'rq_target_hafalan_murojaah_v2' && incomingJson && typeof incomingJson === 'object') {
                             mergedValue = JSON.stringify(mergeTargetDb(currentJson || {}, incomingJson));
                         } else if (key === 'rq_form_input_state_v1' && incomingJson && typeof incomingJson === 'object' && !Array.isArray(incomingJson) && currentJson && typeof currentJson === 'object' && !Array.isArray(currentJson)) {
-                            mergedValue = JSON.stringify({ ...(currentJson || {}), ...incomingJson });
+                            const mergedState = { ...(currentJson || {}) };
+                            for (const [stateKey, stateValue] of Object.entries(incomingJson)) {
+                                const isEmpty = stateValue === null || stateValue === undefined || (typeof stateValue === 'string' && stateValue.trim() === '');
+                                if (!isEmpty || !(stateKey in mergedState)) mergedState[stateKey] = stateValue;
+                            }
+                            mergedValue = JSON.stringify(mergedState);
                         } else if (Array.isArray(incomingJson) && Array.isArray(currentJson)) {
                             mergedValue = JSON.stringify(dedupeArray([...currentJson, ...incomingJson]));
                         } else {

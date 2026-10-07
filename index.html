@@ -2,7 +2,7 @@
 <!DOCTYPE html>
 <html lang="id" class="h-full">
 <head>
-<!-- FORM INPUT PERSISTENCE V2: persistent rq_form_input_state_v1 + history hydration -->
+<!-- FORM INPUT PERSISTENCE V2 + LIVE WA DRAFT SYNC V2: Input and Target appear in Live WA without Save -->
 <!-- LIVE WA AUTO UPDATE FIX 2026-09-28: report follows newest local history -->
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -3492,6 +3492,38 @@
             const lastMurObj = latestLocalByName(murojaahHistoryList);
             const lastTugObj = latestLocalByName(tugasHistoryList);
 
+            // LIVE WA DRAFT SYNC V2: laporan harus mengikuti kolom Input
+            // secara langsung. Tidak perlu menekan Simpan terlebih dahulu.
+            // rq_form_input_state_v1 tetap menjadi cache/persistensi draft;
+            // history hanya dipakai sebagai fallback bila kolom Input kosong.
+            const liveDraftText = (v) => {
+                const x = String(v ?? '').trim();
+                return x && x !== '-' && x !== 'undefined' && x !== 'null' ? x : '';
+            };
+            const liveDraft = (category, name) => {
+                try {
+                    const detail = typeof window.extractSlotEntries === 'function' ? liveDraftText(window.extractSlotEntries(category, name)) : '';
+                    const stat = liveDraftText(document.getElementById(`${category}_stat_${name}`)?.value);
+                    const catType = liveDraftText(document.getElementById(`${category}_cat_type_${name}`)?.value);
+                    const catDesc = liveDraftText(document.getElementById(`${category}_cat_desc_${name}`)?.value);
+                    const catatan = catType ? (catDesc ? `[${catType}] ${catDesc}` : `[${catType}]`) : catDesc;
+                    const progressStatus = liveDraftText(window.getProgressStatusFromSlots?.(typeof window.extractSlotsStructured === 'function' ? window.extractSlotsStructured(category, name) : []));
+                    return {detail, status:stat, catatan, progressStatus};
+                } catch (_) { return {detail:'',status:'',catatan:'',progressStatus:''}; }
+            };
+            const liveDraftTugas = () => ({
+                detail: liveDraftText(document.getElementById(`tug_detail_${s.name}`)?.value),
+                catatan: liveDraftText(document.getElementById(`tug_cat_${s.name}`)?.value)
+            });
+            const draftBac = liveDraft('bac', s.name);
+            const draftHaf = liveDraft('haf', s.name);
+            const draftMur = liveDraft('mur', s.name);
+            const draftTug = liveDraftTugas();
+
+            // Jika kolom Input sedang berisi data, data draft langsung menang.
+            // Ini membuat Live WA identik dengan kondisi form yang sedang dilihat.
+            const hasDraft = d => !!(d && (d.detail || d.status || d.catatan || d.progressStatus));
+
             const getPersonalTime = (row, category) => {
                 const raw = row?.[category + 'Timestamp'] || row?.[category + 'RawTime'] || row?.updatedAt || 0;
                 const n = Number(raw);
@@ -3526,49 +3558,49 @@
             const tugSource = chooseLatest(getPersonalTime(personal, 'tugas'), lastTugObj);
 
             const bacaanVal = window.cleanReportDetail(
-                bacSource === 'personal' ? (personal?.bacaan || '') : (lastBacObj?.detail || '')
+                hasDraft(draftBac) ? draftBac.detail : (bacSource === 'personal' ? (personal?.bacaan || '') : (lastBacObj?.detail || ''))
             );
             const bacaanStat = String(
-                bacSource === 'personal' ? (personal?.bacaanNilai || '') : (lastBacObj?.status || '')
+                hasDraft(draftBac) ? draftBac.status : (bacSource === 'personal' ? (personal?.bacaanNilai || '') : (lastBacObj?.status || ''))
             ).trim();
             const bacaanProgressStatus = String(
-                bacSource === 'personal' ? (personal?.bacaanStatus || '') : (lastBacObj?.progressStatus || '')
+                hasDraft(draftBac) ? draftBac.progressStatus : (bacSource === 'personal' ? (personal?.bacaanStatus || '') : (lastBacObj?.progressStatus || ''))
             ).trim();
             const bacaanCat = window.cleanReportCatatan(
-                bacSource === 'personal' ? (personal?.bacaanKeterangan || '') : (lastBacObj?.catatan || '')
+                hasDraft(draftBac) ? draftBac.catatan : (bacSource === 'personal' ? (personal?.bacaanKeterangan || '') : (lastBacObj?.catatan || ''))
             );
 
             const hafalanVal = window.cleanReportDetail(
-                hafSource === 'personal' ? (personal?.hafalan || '') : (lastHafObj?.detail || '')
+                hasDraft(draftHaf) ? draftHaf.detail : (hafSource === 'personal' ? (personal?.hafalan || '') : (lastHafObj?.detail || ''))
             );
             const hafalanStat = String(
-                hafSource === 'personal' ? (personal?.hafalanNilai || '') : (lastHafObj?.status || '')
+                hasDraft(draftHaf) ? draftHaf.status : (hafSource === 'personal' ? (personal?.hafalanNilai || '') : (lastHafObj?.status || ''))
             ).trim();
             const hafalanProgressStatus = String(
-                hafSource === 'personal' ? (personal?.hafalanStatus || '') : (lastHafObj?.progressStatus || '')
+                hasDraft(draftHaf) ? draftHaf.progressStatus : (hafSource === 'personal' ? (personal?.hafalanStatus || '') : (lastHafObj?.progressStatus || ''))
             ).trim();
             const hafalanCat = window.cleanReportCatatan(
-                hafSource === 'personal' ? (personal?.hafalanKeterangan || '') : (lastHafObj?.catatan || '')
+                hasDraft(draftHaf) ? draftHaf.catatan : (hafSource === 'personal' ? (personal?.hafalanKeterangan || '') : (lastHafObj?.catatan || ''))
             );
 
             const murojaahVal = window.cleanReportDetail(
-                murSource === 'personal' ? (personal?.murojaah || '') : (lastMurObj?.detail || '')
+                hasDraft(draftMur) ? draftMur.detail : (murSource === 'personal' ? (personal?.murojaah || '') : (lastMurObj?.detail || ''))
             );
             const murojaahStat = String(
-                murSource === 'personal' ? (personal?.murojaahNilai || '') : (lastMurObj?.status || '')
+                hasDraft(draftMur) ? draftMur.status : (murSource === 'personal' ? (personal?.murojaahNilai || '') : (lastMurObj?.status || ''))
             ).trim();
             const murojaahProgressStatus = String(
-                murSource === 'personal' ? (personal?.murojaahStatus || '') : (lastMurObj?.progressStatus || '')
+                hasDraft(draftMur) ? draftMur.progressStatus : (murSource === 'personal' ? (personal?.murojaahStatus || '') : (lastMurObj?.progressStatus || ''))
             ).trim();
             const murojaahCat = window.cleanReportCatatan(
-                murSource === 'personal' ? (personal?.murojaahKeterangan || '') : (lastMurObj?.catatan || '')
+                hasDraft(draftMur) ? draftMur.catatan : (murSource === 'personal' ? (personal?.murojaahKeterangan || '') : (lastMurObj?.catatan || ''))
             );
 
             const tugasVal = window.cleanReportDetail(
-                tugSource === 'personal' ? (personal?.tugas || '') : (lastTugObj?.detail || '')
+                hasDraft(draftTug) ? draftTug.detail : (tugSource === 'personal' ? (personal?.tugas || '') : (lastTugObj?.detail || ''))
             );
             const tugasCat = window.cleanReportCatatan(
-                tugSource === 'personal' ? (personal?.tugasKeterangan || '') : (lastTugObj?.catatan || '')
+                hasDraft(draftTug) ? draftTug.catatan : (tugSource === 'personal' ? (personal?.tugasKeterangan || '') : (lastTugObj?.catatan || ''))
             );
 
             const isValidText = (txt) => {
@@ -3616,8 +3648,29 @@
                 const f = v => { const d = new Date(`${v}T00:00:00`); const m = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des']; return `${d.getDate()} ${m[d.getMonth()]}`; };
                 return `${f(mulai)} s.d ${f(selesai)} ( ${hari} Hari )`;
             };
-            const currentHafalanTarget = targetDbForLive?.hafalan?.[s.name]?.jangkaPendek || null;
-            const murojaahTarget = targetDbForLive?.murojaah?.[s.name] || null;
+            // Target Live WA juga membaca kolom Target yang sedang diedit.
+            // Jadi perubahan surat/ayat/periode langsung terlihat tanpa Save.
+            const readDraftTarget = (type, slot) => {
+                try {
+                    const p = type === 'hafalan' ? `Hafalan${slot === 'jangkaPendek' ? 'JangkaPendek' : 'AkanDatang'}` : 'Murojaah';
+                    const suf = type === 'hafalan' ? `_${s.name}` : `_${s.name}`;
+                    const get = id => document.getElementById(id)?.value || '';
+                    const surat = get(`inputTarget${p}Surat${suf}`) || get(`inputTarget${p}SuratSearch${suf}`);
+                    const ayat = Number(get(`inputTarget${p}Ayat${suf}`) || 0);
+                    const juz = get(`inputTarget${p}Juz${suf}`);
+                    const mulai = get(`inputTarget${p}Mulai${suf}`);
+                    const selesai = get(`inputTarget${p}Selesai${suf}`);
+                    if (!surat && !ayat && !mulai && !selesai) return null;
+                    const izin = document.getElementById(`inputTarget${p}TampilLaporan${suf}`)?.checked !== false;
+                    return { surat, ayat, juz, mulai, selesai, tampilLaporan: izin, items: surat && ayat > 0 ? [{surat, ayat, juz, tampilLaporan: izin}] : [] };
+                } catch (_) { return null; }
+            };
+            const savedHafalanTarget = targetDbForLive?.hafalan?.[s.name]?.jangkaPendek || null;
+            const savedMurojaahTarget = targetDbForLive?.murojaah?.[s.name] || null;
+            const draftHafalanTarget = readDraftTarget('hafalan','jangkaPendek');
+            const draftMurojaahTarget = readDraftTarget('murojaah','legacy');
+            const currentHafalanTarget = (draftHafalanTarget?.surat || draftHafalanTarget?.ayat || draftHafalanTarget?.mulai || draftHafalanTarget?.selesai) ? {...savedHafalanTarget, ...draftHafalanTarget} : savedHafalanTarget;
+            const murojaahTarget = (draftMurojaahTarget?.surat || draftMurojaahTarget?.ayat || draftMurojaahTarget?.mulai || draftMurojaahTarget?.selesai) ? {...savedMurojaahTarget, ...draftMurojaahTarget} : savedMurojaahTarget;
             const targetHafalanLive = (() => {
                 if (!includeTargetInLiveTab1 || !currentHafalanTarget) return '';
                 const visibleTarget=targetForLive(currentHafalanTarget);
@@ -3712,6 +3765,22 @@
             window.updateInlineLiveReportTabButtons?.();
             window.setReportSheetStatus('personal');
         };
+
+        // Target juga bersifat live: setiap perubahan kolom Target langsung
+        // memperbarui WA Live, tanpa menekan tombol Simpan.
+        document.addEventListener('input', function(e) {
+            const id = String(e.target?.id || '');
+            if (/^inputTarget(HafalanJangkaPendek|Murojaah)(Surat|SuratSearch|Ayat|Mulai|Selesai|Juz)_/.test(id)) {
+                clearTimeout(window._rqLiveTargetRefreshTimer);
+                window._rqLiveTargetRefreshTimer = setTimeout(() => { try { window.generateWaReport?.(); } catch (_) {} }, 20);
+            }
+        });
+        document.addEventListener('change', function(e) {
+            const id = String(e.target?.id || '');
+            if (/^inputTarget(HafalanJangkaPendek|Murojaah)(Surat|Ayat|Mulai|Selesai|TampilLaporan)_/.test(id)) {
+                setTimeout(() => { try { window.generateWaReport?.(); } catch (_) {} }, 20);
+            }
+        });
 
         window.refreshLiveMurojaahReport = function() {
             if (window.selectedWaSantriName && typeof window.generateWaReport === 'function') {
@@ -4393,6 +4462,75 @@
             }
         };
 
+        // ============================================================
+        // IMPORT CSV BESAR — CHUNKED READER 2026-10-07
+        // Membaca File/Blob bertahap agar tidak membuat salinan text besar
+        // sekaligus di RAM. Format CSV tetap Type,Key,Value dan parser
+        // tetap mendukung quoted field, escaped quote ("") dan newline.
+        // ============================================================
+        window.rqParseOfflineCsvChunked = async function(file, onProgress) {
+            if (!file) throw new Error('File CSV tidak ditemukan.');
+            if (typeof file.stream !== 'function') {
+                // Fallback browser lama; tetap memakai parser resmi.
+                const text = await file.text();
+                return window.parseOfflineCsv(text);
+            }
+            const reader = file.stream().getReader();
+            const decoder = new TextDecoder('utf-8');
+            const rows = [];
+            let row = [], cell = '';
+            let quoted = false, afterQuote = false;
+            let firstChunk = true, loaded = 0;
+            const total = Number(file.size) || 0;
+            const emit = () => {
+                if (typeof onProgress === 'function') {
+                    try { onProgress(total ? Math.min(100, loaded / total * 100) : 100, loaded, total); } catch (_) {}
+                }
+            };
+            const consume = (src, final) => {
+                if (firstChunk) { src = src.replace(/^\uFEFF/, ''); firstChunk = false; }
+                for (let i = 0; i < src.length; i++) {
+                    const ch = src[i];
+                    if (afterQuote) {
+                        if (ch === '"') { cell += '"'; afterQuote = false; continue; }
+                        quoted = false; afterQuote = false;
+                        // lanjut proses karakter yang sama sebagai mode non-quoted
+                    }
+                    if (quoted) {
+                        if (ch === '"') afterQuote = true;
+                        else cell += ch;
+                        continue;
+                    }
+                    if (ch === '"') quoted = true;
+                    else if (ch === ',') { row.push(cell); cell = ''; }
+                    else if (ch === '\n') { row.push(cell); rows.push(row); row = []; cell = ''; }
+                    else if (ch === '\r') { /* abaikan CR */ }
+                    else cell += ch;
+                }
+                if (final) {
+                    if (afterQuote) { quoted = false; afterQuote = false; }
+                    if (cell !== '' || row.length) { row.push(cell); rows.push(row); row = []; cell = ''; }
+                }
+            };
+            try {
+                while (true) {
+                    const part = await reader.read();
+                    if (part.done) break;
+                    loaded += part.value?.byteLength || 0;
+                    consume(decoder.decode(part.value, { stream: true }), false);
+                    emit();
+                    // Beri kesempatan browser menggambar UI/progress sebelum chunk berikutnya.
+                    await new Promise(resolve => setTimeout(resolve, 0));
+                }
+                consume(decoder.decode(), true);
+                emit();
+                return rows.filter(r => r.some(v => String(v ?? '').trim() !== ''));
+            } catch (e) {
+                try { await reader.cancel(); } catch (_) {}
+                throw e;
+            }
+        };
+
         window.parseOfflineCsv = function(text) {
             const src = String(text || '').replace(/^\uFEFF/, '');
             const rows = [];
@@ -4560,15 +4698,17 @@
 
         window.importAllLocalDataFromCsv = async function(file, mode = 'replace', skipConfirm = false) {
             if (!file) return;
+            let beforeStorage = null;
             try {
                 const operator = window.rqGetImportOperator();
                 if (!operator.name) { window.showToast('Nama penginput wajib diisi sebelum Import/Merge.', 'error'); return; }
                 if (!operator.device) { window.showToast('Pilih perangkat Laptop/HP sebelum Import/Merge.', 'error'); return; }
                 window.rqSaveImportOperator();
-                const beforeStorage = {};
+                beforeStorage = {};
                 for (let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(k && k.startsWith('rq_')) beforeStorage[k]=localStorage.getItem(k); }
-                const text = await file.text();
-                const rows = window.parseOfflineCsv(text);
+                const rows = await window.rqParseOfflineCsvChunked(file, (pct) => {
+                    if (box) box.innerHTML = `<div class="flex items-center gap-2 font-black text-sky-800 dark:text-sky-300"><i class="fa-solid fa-spinner fa-spin"></i> Membaca file CSV... ${pct.toFixed(0)}%</div><div class="text-xs font-bold text-slate-600 dark:text-slate-400 mt-1">File diproses bertahap agar tidak membebani browser.</div>`;
+                });
                 if (!rows.length || rows[0][0] !== 'Type' || rows[0][1] !== 'Key' || rows[0][2] !== 'Value') {
                     throw new Error('Format CSV tidak dikenali. Gunakan CSV hasil Download Semua Data Offline.');
                 }
@@ -4592,6 +4732,9 @@
 
                 if (!formatOk || version !== '1') throw new Error('CSV bukan file data offline RQ Al-Khansa atau versinya tidak didukung.');
                 if (!Object.keys(imported).length && !Array.isArray(importedSantri)) throw new Error('CSV tidak berisi data aplikasi.');
+                // Setelah semua isi penting dipindahkan ke struktur import, lepaskan array rows
+                // agar memori browser tidak menahan seluruh tabel CSV selama proses merge.
+                rows = null;
                 if (Array.isArray(importedSantri)) {
                     const invalidMaster = importedSantri.some(x => !x || typeof x !== 'object' || Array.isArray(x));
                     if (invalidMaster) throw new Error('Data Master Santri dalam CSV tidak valid.');
@@ -4783,21 +4926,35 @@
                         'rq_version_history_v1',
                         'rq_version_operator_name',
                         'rq_version_device',
-                        'rq_version_device_name'
+                        'rq_version_device_name',
+                        'rq_pending_sync_queue',
+                        'rq_pending_sync_v1',
+                        'rq_device_id',
+                        'rq_device_id_v2',
+                        'rq_cloud_device_id_v1',
+                        'rq_manual_sync_log_v1',
+                        'rq_input_sync_local_v1',
+                        'rq_google_script_web_app_url_v1'
                     ]);
                     for (const [key, incomingValue] of Object.entries(imported)) {
                         if (deviceLocalOnlyKeys.has(key)) continue;
                         const currentValue = readLocal(key);
                         const incomingJson = parseJson(incomingValue);
                         const currentJson = parseJson(currentValue);
+                        let mergedValue;
                         if (key === 'rq_target_hafalan_murojaah_v2' && incomingJson && typeof incomingJson === 'object') {
-                            localStorage.setItem(key, JSON.stringify(mergeTargetDb(currentJson || {}, incomingJson)));
+                            mergedValue = JSON.stringify(mergeTargetDb(currentJson || {}, incomingJson));
                         } else if (key === 'rq_form_input_state_v1' && incomingJson && typeof incomingJson === 'object' && !Array.isArray(incomingJson) && currentJson && typeof currentJson === 'object' && !Array.isArray(currentJson)) {
-                            localStorage.setItem(key, JSON.stringify({ ...(currentJson || {}), ...incomingJson }));
+                            mergedValue = JSON.stringify({ ...(currentJson || {}), ...incomingJson });
                         } else if (Array.isArray(incomingJson) && Array.isArray(currentJson)) {
-                            localStorage.setItem(key, JSON.stringify(dedupeArray([...currentJson, ...incomingJson])));
+                            mergedValue = JSON.stringify(dedupeArray([...currentJson, ...incomingJson]));
                         } else {
-                            localStorage.setItem(key, incomingValue);
+                            mergedValue = incomingValue;
+                        }
+                        try {
+                            localStorage.setItem(key, mergedValue);
+                        } catch (storageErr) {
+                            throw new Error(`Penyimpanan browser penuh saat menggabungkan ${key}. Data lama akan dipulihkan. (${storageErr?.message || storageErr})`);
                         }
                     }
                     if (Array.isArray(importedSantri)) {
@@ -4805,7 +4962,11 @@
                         const keyFn = x => String(x?.id || '').trim() || `${String(x?.name || '').trim().toLowerCase()}|${String(x?.class || '').trim().toLowerCase()}`;
                         const mergedSantri = mergeByKey(currentSantri, importedSantri, keyFn);
                         window.santriList = mergedSantri;
-                        localStorage.setItem('rq_santri_master', JSON.stringify(mergedSantri));
+                        try {
+                            localStorage.setItem('rq_santri_master', JSON.stringify(mergedSantri));
+                        } catch (storageErr) {
+                            throw new Error(`Penyimpanan browser penuh saat menyimpan Master Santri. Data lama akan dipulihkan. (${storageErr?.message || storageErr})`);
+                        }
                     }
                 }
 
@@ -4857,10 +5018,35 @@
                 setTimeout(() => location.reload(), 2200);
             } catch (e) {
                 console.error(e);
-                window.showToast('Import CSV gagal: ' + (e?.message || e), 'error');
+                if (mode === 'merge' && beforeStorage) {
+                    try {
+                        for (let i = localStorage.length - 1; i >= 0; i--) {
+                            const k = localStorage.key(i);
+                            if (k && k.startsWith('rq_')) localStorage.removeItem(k);
+                        }
+                        for (const [k, v] of Object.entries(beforeStorage)) localStorage.setItem(k, v);
+                        try { window.santriList = JSON.parse(beforeStorage['rq_santri_master'] || '[]'); } catch (_) {}
+                        window.showToast('Gabungkan CSV gagal. Data sebelum gabung dipulihkan sepenuhnya.', 'error');
+                        try {
+                            window.renderAll?.();
+                            window.refreshInlineTargets?.();
+                            window.generateWaReport?.();
+                            window.generateClassReport?.();
+                            window.renderTargetReport?.();
+                        } catch (_) {}
+                    } catch (restoreErr) {
+                        console.error('Rollback Merge gagal:', restoreErr);
+                        window.showToast('Gabungkan CSV gagal dan browser tidak dapat memulihkan otomatis. Jangan tutup halaman; lakukan reload sebelum mencoba lagi.', 'error');
+                    }
+                } else {
+                    window.showToast('Import CSV gagal: ' + (e?.message || e), 'error');
+                }
             }
         };
 
+        // IMPORT/MERGE CSV LARGE FILE FIX 2026-10-07
+        // File dibaca chunk-by-chunk; data lama dipotret sebelum merge;
+        // kunci lokal/perangkat dikecualikan; kegagalan merge memicu rollback.
         window.rqPendingCsvFile = null;
         window.rqPendingCsvImportMode = 'replace';
 
@@ -5112,8 +5298,13 @@
             }
             if (action) action.classList.add('hidden');
             try {
-                const text = await file.text();
-                const rows = window.parseOfflineCsv(text);
+                let rows = await window.rqParseOfflineCsvChunked(file, (pct) => {
+                    const progressBox = document.getElementById('rqOfflineCsvImportStatus');
+                    if (progressBox) {
+                        progressBox.className = 'mt-3 rounded-xl border-2 border-sky-200 bg-sky-50 dark:bg-slate-900/70 dark:border-sky-800 p-4';
+                        progressBox.innerHTML = `<div class="flex items-center gap-2 font-black text-sky-800 dark:text-sky-300"><i class="fa-solid fa-spinner fa-spin"></i> Membaca file CSV... ${pct.toFixed(0)}%</div><div class="text-xs font-bold text-slate-600 dark:text-slate-400 mt-1">File besar diproses bertahap agar browser tetap ringan.</div>`;
+                    }
+                });
                 if (!rows.length || rows[0][0] !== 'Type' || rows[0][1] !== 'Key' || rows[0][2] !== 'Value') {
                     throw new Error('Format CSV tidak dikenali. Gunakan CSV hasil Download Semua Data CSV.');
                 }
@@ -10829,3 +11020,148 @@ html.dark #rqSafetyBackupBox #rqSafetyBackupLocation b{color:#ecfdf5 !important}
             }
         };
 </script>
+
+<script id="rq-input-persistence-final-fix-2026-10-07">
+/* ============================================================
+   INPUT PERSISTENCE FINAL FIX 2026-10-07
+   - Semua nilai kolom Input yang pernah diisi dipertahankan.
+   - Nilai hanya berubah menjadi kosong jika operator memang menghapusnya.
+   - Snapshot DOM ikut disimpan agar render ulang tidak mengosongkan form.
+   - Target juga dipulihkan ke kolomnya setelah render/reload/import.
+   ============================================================ */
+(function(){
+  const KEY='rq_form_dom_snapshot_v2';
+  const read=()=>{try{const x=JSON.parse(localStorage.getItem(KEY)||'{}');return x&&typeof x==='object'?x:{}}catch(_){return {}}};
+  let snap=read(), timer=0;
+  const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(snap));}catch(_){} };
+  const schedule=()=>{clearTimeout(timer);timer=setTimeout(save,180)};
+  const isFormField=el=>{
+    if(!el||!el.id)return false;
+    const tag=String(el.tagName||'').toLowerCase();
+    if(!['input','select','textarea'].includes(tag))return false;
+    if(el.type==='button'||el.type==='submit'||el.type==='file')return false;
+    const id=el.id;
+    return /^(bac_|haf_|mur_|tug_|tgl_|inputTarget|massal)/.test(id) || /_(bac_stat|haf_stat|mur_stat|bac_cat_type|haf_cat_type|mur_cat_type|bac_cat_desc|haf_cat_desc|mur_cat_desc|tug_detail|tug_cat)$/.test(id);
+  };
+  const capture=el=>{
+    if(!isFormField(el))return;
+    snap[el.id]={value:String(el.value??''),checked:!!el.checked,type:String(el.type||''),updatedAt:Date.now()};
+    schedule();
+  };
+  const restore=()=>{
+    let changed=false;
+    Object.keys(snap).forEach(id=>{
+      const el=document.getElementById(id), v=snap[id];
+      if(!el||!v)return;
+      if(el.type==='checkbox'||el.type==='radio') el.checked=!!v.checked;
+      else if(String(el.value??'')!==String(v.value??'')) { el.value=String(v.value??''); changed=true; }
+      try{el.dispatchEvent(new Event('change',{bubbles:false}));}catch(_){}
+    });
+    if(changed) setTimeout(save,20);
+    try{window.refreshInlineTargets?.();}catch(_){}
+  };
+  const captureAll=()=>{document.querySelectorAll('input,select,textarea').forEach(capture);};
+  document.addEventListener('input',e=>capture(e.target),true);
+  document.addEventListener('change',e=>capture(e.target),true);
+  window.rqPersistAllInputFields=()=>{captureAll();save();};
+  window.rqRestoreAllInputFields=()=>setTimeout(restore,30);
+
+  // Simpan nilai terakhir sebelum setiap render ulang kartu.
+  const oldRender=window.renderSantriCardsAndTable;
+  if(typeof oldRender==='function'){
+    window.renderSantriCardsAndTable=function(){
+      try{captureAll();save();}catch(_){}
+      const r=oldRender.apply(this,arguments);
+      setTimeout(restore,60);
+      setTimeout(()=>{try{window.refreshInlineTargets?.();restore();}catch(_){}},180);
+      return r;
+    };
+  }
+
+  // Setelah target dihapus manual, hapus hanya snapshot kolom target tersebut.
+  const oldDeleteTarget=window.deleteInputTarget;
+  if(typeof oldDeleteTarget==='function'){
+    window.deleteInputTarget=function(type,name,slot='legacy'){
+      const p=type==='hafalan'?'Hafalan':'Murojaah';
+      const suf=type==='hafalan'?(slot==='jangkaPendek'?'JangkaPendek':slot==='akanDatang'?'AkanDatang':''):'';
+      const base=`inputTarget${p}${suf}`;
+      [
+        `${base}Juz_${name}`,`${base}Surat_${name}`,`${base}Ayat_${name}`,
+        `${base}Mulai_${name}`,`${base}Selesai_${name}`
+      ].forEach(id=>{delete snap[id]});
+      if(type==='hafalan'){
+        delete snap[`${base}SuratSearch_${name}`];
+      }
+      save();
+      return oldDeleteTarget.apply(this,arguments);
+    };
+  }
+
+  // Target yang baru disimpan langsung dicatat sebagai nilai form terakhir.
+  const oldSaveTarget=window.saveInputTarget;
+  if(typeof oldSaveTarget==='function'){
+    window.saveInputTarget=function(){
+      const r=oldSaveTarget.apply(this,arguments);
+      setTimeout(()=>{try{captureAll();save();restore();}catch(_){}},70);
+      return r;
+    };
+  }
+
+  // Boot dan setiap perpindahan menu tetap mengembalikan nilai terakhir.
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(restore,220));
+  else setTimeout(restore,220);
+  setTimeout(restore,700);
+})();
+</script>
+
+<script id="rq-progress-percent-fix-2026-10-07">
+/* ============================================================
+   PROGRESS PERCENT FINAL FIX 2026-10-07
+   Progress = jumlah ayat unik yang benar-benar sudah diinput / target.
+   Tidak lagi mensyaratkan ayat harus dimulai dari ayat 1 untuk dihitung.
+   Target tetap menjadi batas maksimum.
+   ============================================================ */
+(function(){
+  const eng=window.rqTargetEngine;
+  if(!eng||typeof eng.calc!=='function')return;
+  const oldCalc=eng.calc;
+  const norm=v=>String(v??'').trim().toLowerCase().normalize('NFKC').replace(/[‘’‚‛′`´]/g,"'").replace(/[‐‑‒–—]/g,'-').replace(/^[0-9]+\.\s*/,'').replace(/\s*\(\s*[0-9]+\s*ayat\s*\)$/i,'').replace(/\s+/g,' ');
+  const same=(a,b)=>{const x=norm(a),y=norm(b);return !!x&&!!y&&(x===y||x.includes(y)||y.includes(x));};
+  const targetItems=t=>Array.isArray(t?.items)&&t.items.length?t.items:(t?.surat&&Number(t?.ayat)>0?[{surat:t.surat,ayat:Number(t.ayat)||0,juz:t.juz||''}]:[]);
+  const addRange=(set,a,b)=>{a=Number(a);b=Number(b);if(!Number.isFinite(a)||a<1)return;if(!Number.isFinite(b)||b<a)b=a;for(let n=Math.floor(a);n<=Math.floor(b);n++)set.add(n);};
+  const fallback=(row,set,surat)=>{
+    const d=String(row?.detail||'');
+    if(surat&&!norm(d).includes(norm(surat)))return;
+    const re=/(?:ayat|ay)\s*[:.]?\s*(\d+)(?:\s*[-–]\s*(\d+))?/gi; let m;
+    while((m=re.exec(d))){addRange(set,m[1],m[2]||m[1]);}
+  };
+  eng.calc=function(type,name,t){
+    const q=oldCalc.apply(this,arguments)||{};
+    try{
+      const items=targetItems(t); if(!items.length)return q;
+      const rows=Array.isArray(q.rows)?q.rows:[];
+      let totalTarget=0,totalReal=0,lastAyat=0;
+      const itemProgress=items.map(item=>{
+        const target=Math.max(0,Number(item?.ayat)||0); totalTarget+=target;
+        const set=new Set(), targetSurat=item?.surat;
+        rows.forEach(row=>{
+          const slots=Array.isArray(row?.slots)?row.slots.filter(x=>x&&x.item&&x.item!=='-'):[];
+          if(slots.length){
+            slots.forEach(sl=>{if(same(sl.item,targetSurat))addRange(set,sl.start,sl.end);});
+          }else fallback(row,set,targetSurat);
+        });
+        for(const n of [...set])if(n>target)set.delete(n);
+        const real=Math.min(target,set.size), pct=target?Math.min(100,Math.round(real/target*100)):0;
+        totalReal+=real; if(real>lastAyat)lastAyat=real;
+        return {surat:item?.surat,ayatTarget:target,ayatReal:real,pct,lastAyat:real,juz:item?.juz||''};
+      });
+      const pct=totalTarget?Math.min(100,Math.round(totalReal/totalTarget*100)):0;
+      q.ayatTarget=totalTarget;q.ayatReal=totalReal;q.ayatCount=totalReal;q.ayatPct=pct;q.pct=pct;q.lastAyat=lastAyat;q.itemProgress=itemProgress;
+      return q;
+    }catch(_){return q;}
+  };
+  // Segarkan semua tampilan progres setelah engine diperbaiki.
+  setTimeout(()=>{try{window.refreshInlineTargets?.();window.generateWaReport?.();window.generateClassReport?.();window.renderTargetReport?.();}catch(_){}},120);
+})();
+</script>
+

@@ -4788,7 +4788,7 @@
                         }
                     }
                 } else {
-                    window.showToast('Mode GABUNGKAN aman: snapshot besar tidak dibuat agar CSV besar tidak memenuhi penyimpanan browser.', 'info');
+                    window.showToast('Gabungkan CSV: data lama dipertahankan dan file diproses bertahap.', 'info');
                 }
 
                 const readLocal = key => {
@@ -4797,14 +4797,29 @@
                 const parseJson = value => {
                     try { return JSON.parse(value); } catch (_) { return null; }
                 };
+                const itemSignature = item => {
+                    try { return JSON.stringify(item); } catch (_) { return String(item); }
+                };
                 const dedupeArray = arr => {
                     const out = [], seen = new Set();
                     for (const item of Array.isArray(arr) ? arr : []) {
-                        let sig;
-                        try { sig = JSON.stringify(item); } catch (_) { sig = String(item); }
+                        const sig = itemSignature(item);
                         if (!seen.has(sig)) { seen.add(sig); out.push(item); }
                     }
                     return out;
+                };
+                const mergeArrayPreserveLocal = (current, incoming) => {
+                    const oldArr = Array.isArray(current) ? current : [];
+                    const newArr = Array.isArray(incoming) ? incoming : [];
+                    if (!newArr.length) return oldArr;
+                    const seen = new Set(oldArr.map(itemSignature));
+                    const out = oldArr.slice();
+                    let changed = false;
+                    for (const item of newArr) {
+                        const sig = itemSignature(item);
+                        if (!seen.has(sig)) { seen.add(sig); out.push(item); changed = true; }
+                    }
+                    return changed ? out : oldArr;
                 };
                 const mergeByKey = (current, incoming, keyFn) => {
                     const map = new Map();
@@ -4953,9 +4968,10 @@
                             }
                             mergedValue = JSON.stringify(mergedState);
                         } else if (Array.isArray(incomingJson) && Array.isArray(currentJson)) {
-                            mergedValue = JSON.stringify(dedupeArray([...currentJson, ...incomingJson]));
+                            mergedValue = JSON.stringify(mergeArrayPreserveLocal(currentJson, incomingJson));
                         } else {
-                            mergedValue = incomingValue;
+                            const incomingEmpty = incomingValue === null || incomingValue === undefined || String(incomingValue).trim() === '';
+                            mergedValue = (incomingEmpty && currentValue !== null && currentValue !== undefined && String(currentValue) !== '') ? currentValue : incomingValue;
                         }
                         // Jangan menulis ulang nilai yang benar-benar sama.
                         // Ini penting untuk CSV besar: backup lama sering berisi data yang
@@ -5038,7 +5054,9 @@
                             const k = localStorage.key(i);
                             if (k && k.startsWith('rq_')) localStorage.removeItem(k);
                         }
-                        for (const [k, v] of Object.entries(beforeStorage)) localStorage.setItem(k, v);
+                        for (const [k, v] of Object.entries(beforeStorage)) {
+                            try { localStorage.setItem(k, v); } catch (restoreOneErr) { console.error('Rollback key gagal:', k, restoreOneErr); throw restoreOneErr; }
+                        }
                         try { window.santriList = JSON.parse(beforeStorage['rq_santri_master'] || '[]'); } catch (_) {}
                         window.showToast('Gabungkan CSV gagal. Data sebelum gabung dipulihkan sepenuhnya.', 'error');
                         try {
@@ -5059,6 +5077,8 @@
         };
 
         // IMPORT/MERGE CSV LARGE FILE FIX 2026-10-07
+// FIX OIOI CSV MERGE 2026-10-07: preserve local arrays, skip identical writes, keep non-empty local values.
+// FIX 2026-10-07B: jangan buat Undo Snapshot kedua melalui wrapper keamanan saat mode GABUNGKAN.
         // File dibaca chunk-by-chunk; data lama dipotret sebelum merge;
         // kunci lokal/perangkat dikecualikan; kegagalan merge memicu rollback.
         window.rqPendingCsvFile = null;
@@ -9428,7 +9448,17 @@ html.dark #rqSafetyBackupBox #rqSafetyBackupLocation b{color:#ecfdf5 !important}
   function init(){
     panel();
     ['saveSectionData','saveInputTarget','deleteInputTarget','deleteSantriFromRekapan','deleteCardHistoryItem','saveMassalMurojaah','saveMassalTugas','resetDailyLogsOnly'].forEach(n=>wrap(n,n.replace(/([A-Z])/g,' $1').trim()));
-    const imp=window.confirmOfflineCsvImport;if(typeof imp==='function'&&!imp.__rqWrapped){const w=async function(){snapshot('sebelum import CSV');writeLog({action:'Import CSV',detail:'Menjalankan proses import CSV'});const r=await imp.apply(this,arguments);window.dispatchEvent(new Event('rq:db-updated'));return r};w.__rqWrapped=true;window.confirmOfflineCsvImport=w;}
+    const imp=window.confirmOfflineCsvImport;if(typeof imp==='function'&&!imp.__rqWrapped){const w=async function(){
+      // IMPORT CSV SUDAH MEMILIKI ROLLBACK IN-MEMORY + backup khusus mode GANTI.
+      // JANGAN membuat Undo Snapshot besar lagi di sini, karena CSV 5-10 MB dapat
+      // menggandakan localStorage dan menyebabkan QUOTA_EXCEEDED_ERR sebelum merge dimulai.
+      const mode=window.rqPendingCsvImportMode==='merge'?'merge':'replace';
+      if(mode==='replace'){ try{ snapshot('sebelum import CSV'); }catch(_){} }
+      writeLog({action:'Import CSV',detail:'Menjalankan proses import CSV '+(mode==='merge'?'GABUNGKAN':'GANTI')});
+      const r=await imp.apply(this,arguments);
+      window.dispatchEvent(new Event('rq:db-updated'));
+      return r;
+    };w.__rqWrapped=true;window.confirmOfflineCsvImport=w;}
     const merge=window.importWebSyncFile;if(typeof merge==='function'&&!merge.__rqWrapped){const w=async function(){snapshot('sebelum import file sinkronisasi');writeLog({action:'Import file sinkronisasi'});const r=await merge.apply(this,arguments);window.dispatchEvent(new Event('rq:db-updated'));return r};w.__rqWrapped=true;window.importWebSyncFile=w;}
     writeLog({action:'Membuka aplikasi',detail:'Database lokal siap digunakan'});
   }

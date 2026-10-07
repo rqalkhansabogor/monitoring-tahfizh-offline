@@ -4957,6 +4957,11 @@
                         } else {
                             mergedValue = incomingValue;
                         }
+                        // Jangan menulis ulang nilai yang benar-benar sama.
+                        // Ini penting untuk CSV besar: backup lama sering berisi data yang
+                        // sudah ada di perangkat. Menulis ulang nilai identik hanya membuang
+                        // ruang Local Storage dan dapat memicu QUOTA_EXCEEDED_ERR.
+                        if (String(currentValue ?? '') === String(mergedValue ?? '')) continue;
                         try {
                             localStorage.setItem(key, mergedValue);
                         } catch (storageErr) {
@@ -4968,8 +4973,11 @@
                         const keyFn = x => String(x?.id || '').trim() || `${String(x?.name || '').trim().toLowerCase()}|${String(x?.class || '').trim().toLowerCase()}`;
                         const mergedSantri = mergeByKey(currentSantri, importedSantri, keyFn);
                         window.santriList = mergedSantri;
-                        try {
-                            localStorage.setItem('rq_santri_master', JSON.stringify(mergedSantri));
+                        const mergedSantriValue = JSON.stringify(mergedSantri);
+                        if (String(readLocal('rq_santri_master') || '') === mergedSantriValue) {
+                            // Master sudah identik; tidak perlu ditulis ulang.
+                        } else try {
+                            localStorage.setItem('rq_santri_master', mergedSantriValue);
                         } catch (storageErr) {
                             throw new Error(`Penyimpanan browser penuh saat menyimpan Master Santri. Data lama akan dipulihkan. (${storageErr?.message || storageErr})`);
                         }
@@ -4992,7 +5000,7 @@
                             <div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5"><b>Target Hafalan:</b><br>${targetAfterH} santri</div>
                             <div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5"><b>Target Muroja’ah:</b><br>${targetAfterM} santri</div>
                         </div>
-                        <div class="mt-3 text-xs font-black text-emerald-700 dark:text-emerald-300">✓ Backup pengaman dibuat sebelum proses. Data berhasil diperbarui.</div>
+                        <div class="mt-3 text-xs font-black text-emerald-700 dark:text-emerald-300">✓ Data berhasil diperbarui dan data lama dipertahankan.</div>
                         <div class="mt-2 text-xs font-bold text-slate-600 dark:text-slate-400">Aplikasi akan dimuat ulang sebentar lagi untuk menampilkan data terbaru.</div>`;
                 }
                 try {
@@ -5400,9 +5408,9 @@
             const file = window.rqPendingCsvFile;
             const mode = window.rqPendingCsvImportMode === 'merge' ? 'merge' : 'replace';
             if (!file) return;
-            const label = mode === 'merge' ? 'menggabungkan' : 'mengganti';
-            const ok = confirm(`File sudah berhasil dibaca. Apakah Anda yakin ingin ${label} data aplikasi dengan file ini?\n\nFile: ${file.name}`);
-            if (!ok) return;
+            // Tombol mode yang dipilih sudah menjadi konfirmasi.
+            // Jangan munculkan popup confirm kedua karena pada HP/browser tertentu
+            // popup ini terlihat seperti error dan membuat alur Gabungkan terhenti.
             const box = document.getElementById('rqOfflineCsvImportStatus');
             const action = document.getElementById('rqOfflineCsvImportAction');
             if (box) box.innerHTML = '<div class="flex items-center gap-2 font-black text-sky-800 dark:text-sky-300"><i class="fa-solid fa-spinner fa-spin"></i> Memproses import...</div><div class="text-xs font-bold text-slate-600 dark:text-slate-400 mt-1">Jangan tutup halaman sampai selesai.</div>';

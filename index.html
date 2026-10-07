@@ -4698,6 +4698,7 @@
 
         window.importAllLocalDataFromCsv = async function(file, mode = 'replace', skipConfirm = false) {
             if (!file) return;
+            const box = document.getElementById('rqOfflineCsvImportStatus');
             let beforeStorage = null;
             try {
                 const operator = window.rqGetImportOperator();
@@ -4706,7 +4707,7 @@
                 window.rqSaveImportOperator();
                 beforeStorage = {};
                 for (let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(k && k.startsWith('rq_')) beforeStorage[k]=localStorage.getItem(k); }
-                const rows = await window.rqParseOfflineCsvChunked(file, (pct) => {
+                let rows = await window.rqParseOfflineCsvChunked(file, (pct) => {
                     if (box) box.innerHTML = `<div class="flex items-center gap-2 font-black text-sky-800 dark:text-sky-300"><i class="fa-solid fa-spinner fa-spin"></i> Membaca file CSV... ${pct.toFixed(0)}%</div><div class="text-xs font-bold text-slate-600 dark:text-slate-400 mt-1">File diproses bertahap agar tidak membebani browser.</div>`;
                 });
                 if (!rows.length || rows[0][0] !== 'Type' || rows[0][1] !== 'Key' || rows[0][2] !== 'Value') {
@@ -5078,6 +5079,7 @@
 
         // IMPORT/MERGE CSV LARGE FILE FIX 2026-10-07
 // FIX OIOI CSV MERGE 2026-10-07: preserve local arrays, skip identical writes, keep non-empty local values.
+// FIX FINAL 2026-10-07: importer progress box defined + rows mutable after chunk parsing.
 // FIX 2026-10-07B: jangan buat Undo Snapshot kedua melalui wrapper keamanan saat mode GABUNGKAN.
         // File dibaca chunk-by-chunk; data lama dipotret sebelum merge;
         // kunci lokal/perangkat dikecualikan; kegagalan merge memicu rollback.

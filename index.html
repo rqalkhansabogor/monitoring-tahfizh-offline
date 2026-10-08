@@ -4352,9 +4352,17 @@
                     } catch (_) {}
                 }
                 if (Array.isArray(masterSantri)) rows.push(['santriList', '__santriList', JSON.stringify(masterSantri)]);
+                // Download perpindahan harus mengikuti DATA AKTIF saat ini.
+                // Snapshot Undo tidak ikut karena dapat berisi salinan riwayat lama
+                // yang sudah dihapus melalui Hapus Full Riwayat.
+                // Data Input, riwayat aktif, target, tracking, dan data laporan
+                // yang tersimpan di rq_* tetap ikut di-download.
+                const exportExcludedKeys = new Set([
+                    'rq_undo_snapshots_v1'
+                ]);
                 for (let i = 0; i < localStorage.length; i++) {
                     const key = localStorage.key(i);
-                    if (!key || !key.startsWith('rq_')) continue;
+                    if (!key || !key.startsWith('rq_') || exportExcludedKeys.has(key)) continue;
                     rows.push(['localStorage', key, localStorage.getItem(key) ?? '']);
                 }
 
@@ -4848,10 +4856,11 @@
             // Sebelumnya, jika input masih berisi file lama, sistem langsung memakai
             // file lama sehingga pengguna merasa file HP yang baru tidak masuk.
             try { input.value = ''; } catch (_) {}
-            setTimeout(() => {
-                try { input.click(); }
-                catch (e) { window.showToast?.('Pemilih file tidak dapat dibuka: ' + (e?.message || e), 'error'); }
-            }, 0);
+            // Klik pemilih file harus terjadi langsung dari event tombol.
+            // setTimeout dapat membuat Chrome/HP menganggapnya bukan lagi
+            // aksi pengguna sehingga dialog file tidak terbuka.
+            try { input.click(); }
+            catch (e) { window.showToast?.('Pemilih file tidak dapat dibuka: ' + (e?.message || e), 'error'); }
         };
 
         window.handleOfflineCsvDrop = function(event, mode = 'replace') {
@@ -7800,7 +7809,7 @@
                             <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                                 <div>
                                     <div class="text-sm font-black text-slate-800 dark:text-slate-100">1. Pilih / Seret File CSV</div>
-                                    <div class="text-[11px] text-slate-500 dark:text-slate-400 font-bold mt-1">Gunakan file hasil <b>Download Semua Data CSV</b>.</div>
+                                    <div class="text-[11px] text-slate-500 dark:text-slate-400 font-bold mt-1">Gunakan file hasil <b>Download Semua Data CSV</b>. File mengikuti data aktif saat ini: Master Santri, riwayat yang masih ada, Kolom Input, target/tracking, dan data yang dipakai laporan WA. Snapshot Undo yang berisi salinan riwayat lama tidak ikut.</div>
                                 </div>
                                 <button type="button" onclick="window.resetOfflineCsvImport()" class="shrink-0 px-4 py-2.5 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-white rounded-xl font-black text-xs"><i class="fa-solid fa-rotate-left"></i> Reset File</button>
                             </div>

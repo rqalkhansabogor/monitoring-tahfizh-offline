@@ -10745,3 +10745,233 @@ html.dark #rqSafetyBackupBox #rqSafetyBackupLocation b{color:#ecfdf5 !important}
             }
         };
 </script>
+
+
+<script id="rq-full-history-cleaner-2026-10-08">
+(function(){
+  'use strict';
+
+  const CLEAN_HISTORY_KEYS = [
+    'rq_history_bacaan',
+    'rq_history_hafalan',
+    'rq_history_murojaah',
+    'rq_history_tugas'
+  ];
+  const EXTRA_HISTORY_KEYS = [
+    'rq_history_rekapan',
+    'rq_massal_history_murojaah',
+    'rq_massal_history_tugas'
+  ];
+  const CLEAN_ALL_KEYS = CLEAN_HISTORY_KEYS.concat(EXTRA_HISTORY_KEYS);
+  const SUMMARY_KEY = 'rq_history_cleanup_summary_v1';
+
+  const esc = v => String(v ?? '').replace(/[&<>"']/g,m=>({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'
+  }[m]));
+
+  function readArray(key){
+    try{
+      const v=JSON.parse(localStorage.getItem(key)||'[]');
+      return Array.isArray(v)?v:[];
+    }catch(_){ return []; }
+  }
+  function timeOf(x){
+    const n=Number(x?.rawTime||0);
+    if(Number.isFinite(n)&&n>0)return n;
+    const d=Date.parse(String(x?.timestamp||x?.tanggal||x?.date||''));
+    return Number.isFinite(d)?d:0;
+  }
+  function nameOf(x){ return String(x?.name||'').trim().toLowerCase(); }
+
+  // Ambil nilai yang benar-benar masih berada pada Kolom Input.
+  // Jika belum ada nilai pada form, tidak membuat riwayat baru.
+  function currentInputRecord(s, category){
+    if(!s || !window.getFormCache) return null;
+    const name=String(s.name||'');
+    const parts=[];
+    for(let slot=1;slot<=3;slot++){
+      const mode=String(window.getFormCache(`${name}_${category}_mode_${slot}`,'quran')||'quran');
+      const item=String(window.getFormCache(`${name}_${category}_${mode==='iqro'?'iqro':'surah'}_${slot}`,'')||'').trim();
+      const start=String(window.getFormCache(`${name}_${category}_start_${slot}`,'')||'').trim();
+      const end=String(window.getFormCache(`${name}_${category}_end_${slot}`,'')||'').trim();
+      if(!item) continue;
+      const isIqro=mode==='iqro'||/iqro/i.test(item);
+      const unit=isIqro?'halaman':'ayat';
+      let count=0;
+      const a=parseInt(start,10), b=parseInt(end,10);
+      if(Number.isFinite(a)&&Number.isFinite(b)&&b>=a) count=b-a+1;
+      else if(Number.isFinite(a)) count=1;
+      const range=isIqro
+        ? `Hlm ${start}${end&&end!==start?'-'+end:''}`
+        : `${start}${end&&end!==start?'-'+end:''}`;
+      parts.push(`${item} ${range}${count>0?` (bertambah ${count} ${unit})`:''}`.trim());
+    }
+
+    let detail=parts.join(', ');
+    let status='',progressStatus='',catatan='';
+    if(category==='bac'){
+      status=String(window.getFormCache(`${name}_bac_stat`,'')||'');
+      const ct=String(window.getFormCache(`${name}_bac_cat_type`,'')||'').trim();
+      const cd=String(window.getFormCache(`${name}_bac_cat_desc`,'')||'').trim();
+      catatan=ct?(cd?`[${ct}] ${cd}`:`[${ct}]`):cd;
+    }else if(category==='haf'){
+      status=String(window.getFormCache(`${name}_haf_stat`,'')||'');
+      const ct=String(window.getFormCache(`${name}_haf_cat_type`,'')||'').trim();
+      const cd=String(window.getFormCache(`${name}_haf_cat_desc`,'')||'').trim();
+      catatan=ct?(cd?`[${ct}] ${cd}`:`[${ct}]`):cd;
+    }else if(category==='mur'){
+      status=String(window.getFormCache(`${name}_mur_stat`,'')||'');
+      const ct=String(window.getFormCache(`${name}_mur_cat_type`,'')||'').trim();
+      const cd=String(window.getFormCache(`${name}_mur_cat_desc`,'')||'').trim();
+      catatan=ct?(cd?`[${ct}] ${cd}`:`[${ct}]`):cd;
+    }else if(category==='tug'){
+      detail=String(window.getFormCache(`${name}_tug_detail`,'')||'').trim();
+      catatan=String(window.getFormCache(`${name}_tug_cat`,'')||'').trim();
+    }
+
+    const hasData=!!(detail||status||progressStatus||catatan);
+    if(!hasData) return null;
+    const tanggal=String(window.getFormCache(`tgl_${name}`,'')||s[`last${category==='bac'?'Bacaan':category==='haf'?'Hafalan':category==='mur'?'Murojaah':'Tugas'}Date`]||'').trim();
+    const now=Date.now();
+    return {
+      timestamp: typeof window.formatTimestampCustom==='function' ? window.formatTimestampCustom(new Date(now)) : new Date(now).toISOString(),
+      tanggal,
+      rawTime: now,
+      name:s.name,
+      detail,
+      status,
+      progressStatus,
+      catatan,
+      type: category==='bac'?'bacaan':category==='haf'?'hafalan':category==='mur'?'murojaah':'tugas',
+      __fromCurrentInput:true
+    };
+  }
+
+  function preserveCurrentInputRows(key, category){
+    const old=readArray(key);
+    const kept=[];
+    const seen=new Set();
+    (window.santriList||[]).forEach(s=>{
+      const rec=currentInputRecord(s,category);
+      if(!rec) return;
+      const nm=nameOf(rec);
+      // Jika history lama cocok dengan isi kolom Input, pertahankan record lama
+      // agar timestamp asli tetap terjaga. Jika tidak ada, simpan representasi
+      // kolom Input agar Live WA tetap dapat membaca data setelah history dibersihkan.
+      const candidates=old.filter(x=>nameOf(x)===nm).sort((a,b)=>timeOf(b)-timeOf(a));
+      const match=candidates.find(x=>String(x?.detail||'').trim()===String(rec.detail||'').trim());
+      const keep=match?{...match,__fromCurrentInput:true}:rec;
+      if(!seen.has(nm)){kept.push(keep);seen.add(nm);}
+    });
+    localStorage.setItem(key,JSON.stringify(kept));
+    return {before:old.length,after:kept.length,deleted:Math.max(0,old.length-kept.length)};
+  }
+
+  function saveSummary(total,byKey){
+    const prev=(()=>{try{return JSON.parse(localStorage.getItem(SUMMARY_KEY)||'{}')||{};}catch(_){return {};}})();
+    const summary={
+      totalDeleted:Number(total||0),
+      lastDeleted:Number(total||0),
+      deletedAt:new Date().toISOString(),
+      byKey:byKey||{},
+      cumulativeDeleted:Number(prev.cumulativeDeleted||0)+Number(total||0)
+    };
+    localStorage.setItem(SUMMARY_KEY,JSON.stringify(summary));
+    return summary;
+  }
+
+  function renderSummary(){
+    const box=document.getElementById('rqHistoryCleanupSummary');
+    if(!box)return;
+    let data={};
+    try{data=JSON.parse(localStorage.getItem(SUMMARY_KEY)||'{}')||{};}catch(_){data={};}
+    box.textContent=String(Number(data.lastDeleted||0));
+  }
+
+  window.rqDeleteFullHistoryKeepInput=function(){
+    const ok=confirm(
+      'HAPUS FULL RIWAYAT?\n\n'+
+      'Riwayat Bacaan, Hafalan, Murojaah, Tugas, Rekapan, Murojaah Bersama, dan Tugas Bersama akan dibersihkan.\n\n'+
+      'Data yang masih ada pada KOLom INPUT dipertahankan dan tetap digunakan untuk Laporan WA Live Personal dan Laporan WA Grup.\n\n'+
+      'Data Master Santri, Target, Tracking, dan data penting lainnya tidak dihapus.\n\nLanjutkan?'
+    );
+    if(!ok)return;
+
+    try{
+      const byKey={};
+      let total=0;
+      const map=[
+        ['rq_history_bacaan','bac'],
+        ['rq_history_hafalan','haf'],
+        ['rq_history_murojaah','mur'],
+        ['rq_history_tugas','tug']
+      ];
+      for(const [key,cat] of map){
+        const r=preserveCurrentInputRows(key,cat);
+        byKey[key]=r.deleted;
+        total+=r.deleted;
+      }
+      for(const key of EXTRA_HISTORY_KEYS){
+        const old=readArray(key);
+        byKey[key]=old.length;
+        total+=old.length;
+        localStorage.removeItem(key);
+      }
+
+      // Form Input TIDAK disentuh.
+      // Ini juga memastikan Live WA memakai data yang baru saja dipertahankan.
+      try{ window.persistFormCache?.(true); }catch(_){}
+      const summary=saveSummary(total,byKey);
+      renderSummary();
+
+      try{ window.hydrateInputFormsFromHistory?.(true); }catch(_){}
+      try{ window.renderSantriCardsAndTable?.(); }catch(_){}
+      try{ window.generateWaReport?.(); }catch(_){}
+      try{ window.generateClassReport?.(); }catch(_){}
+      try{ window.renderLaporanSantriPekan?.(); }catch(_){}
+
+      if(typeof window.showToast==='function'){
+        window.showToast(`Riwayat berhasil dibersihkan. Jumlah dihapus: ${summary.lastDeleted}`, 'success');
+      }else{
+        alert(`Riwayat berhasil dibersihkan. Jumlah dihapus: ${summary.lastDeleted}`);
+      }
+    }catch(e){
+      console.error('Hapus full riwayat gagal:',e);
+      if(typeof window.showToast==='function') window.showToast('Hapus riwayat gagal: '+(e?.message||e),'error');
+      else alert('Hapus riwayat gagal: '+(e?.message||e));
+    }
+  };
+
+  function installDataButton(){
+    if(document.getElementById('rqFullHistoryCleanupCard'))return;
+    const section=document.getElementById('section-export');
+    if(!section)return;
+    const card=document.createElement('div');
+    card.id='rqFullHistoryCleanupCard';
+    card.className='mt-4 p-4 sm:p-5 rounded-2xl border-2 border-rose-200 dark:border-rose-900 bg-white dark:bg-slate-800 shadow-sm';
+    card.innerHTML=`
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <div class="font-black text-base text-rose-700 dark:text-rose-300">Hapus Full Riwayat</div>
+          <div class="text-[11px] sm:text-xs font-bold text-slate-600 dark:text-slate-400 mt-1">
+            Menghapus riwayat lama, tetapi data yang masih ada pada Kolom Input tetap dipertahankan untuk Laporan WA Live Personal dan Grup.
+          </div>
+        </div>
+        <button type="button" onclick="window.rqDeleteFullHistoryKeepInput()" class="shrink-0 px-4 py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-black text-xs sm:text-sm shadow-md active:scale-95 transition">
+          <i class="fa-solid fa-trash-can"></i> Hapus Full Riwayat
+        </button>
+      </div>
+      <div class="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between gap-3">
+        <span class="text-xs font-black text-slate-600 dark:text-slate-300">Jumlah riwayat dihapus</span>
+        <span id="rqHistoryCleanupSummary" class="text-lg font-black text-rose-700 dark:text-rose-300">0</span>
+      </div>`;
+    section.appendChild(card);
+    renderSummary();
+  }
+
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(installDataButton,300));
+  else setTimeout(installDataButton,300);
+  setTimeout(installDataButton,1200);
+  setTimeout(renderSummary,1500);
+})();
+</script>

@@ -2,7 +2,7 @@
 <!DOCTYPE html>
 <html lang="id" class="h-full">
 <head>
-<!-- FORM INPUT PERSISTENCE V2: persistent rq_form_input_state_v1 + history hydration -->
+<!-- FORM INPUT PERSISTENCE V2 + LIVE WA DRAFT SYNC V2: Input and Target appear in Live WA without Save -->
 <!-- LIVE WA AUTO UPDATE FIX 2026-09-28: report follows newest local history -->
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -3492,6 +3492,38 @@
             const lastMurObj = latestLocalByName(murojaahHistoryList);
             const lastTugObj = latestLocalByName(tugasHistoryList);
 
+            // LIVE WA DRAFT SYNC V2: laporan harus mengikuti kolom Input
+            // secara langsung. Tidak perlu menekan Simpan terlebih dahulu.
+            // rq_form_input_state_v1 tetap menjadi cache/persistensi draft;
+            // history hanya dipakai sebagai fallback bila kolom Input kosong.
+            const liveDraftText = (v) => {
+                const x = String(v ?? '').trim();
+                return x && x !== '-' && x !== 'undefined' && x !== 'null' ? x : '';
+            };
+            const liveDraft = (category, name) => {
+                try {
+                    const detail = typeof window.extractSlotEntries === 'function' ? liveDraftText(window.extractSlotEntries(category, name)) : '';
+                    const stat = liveDraftText(document.getElementById(`${category}_stat_${name}`)?.value);
+                    const catType = liveDraftText(document.getElementById(`${category}_cat_type_${name}`)?.value);
+                    const catDesc = liveDraftText(document.getElementById(`${category}_cat_desc_${name}`)?.value);
+                    const catatan = catType ? (catDesc ? `[${catType}] ${catDesc}` : `[${catType}]`) : catDesc;
+                    const progressStatus = liveDraftText(window.getProgressStatusFromSlots?.(typeof window.extractSlotsStructured === 'function' ? window.extractSlotsStructured(category, name) : []));
+                    return {detail, status:stat, catatan, progressStatus};
+                } catch (_) { return {detail:'',status:'',catatan:'',progressStatus:''}; }
+            };
+            const liveDraftTugas = () => ({
+                detail: liveDraftText(document.getElementById(`tug_detail_${s.name}`)?.value),
+                catatan: liveDraftText(document.getElementById(`tug_cat_${s.name}`)?.value)
+            });
+            const draftBac = liveDraft('bac', s.name);
+            const draftHaf = liveDraft('haf', s.name);
+            const draftMur = liveDraft('mur', s.name);
+            const draftTug = liveDraftTugas();
+
+            // Jika kolom Input sedang berisi data, data draft langsung menang.
+            // Ini membuat Live WA identik dengan kondisi form yang sedang dilihat.
+            const hasDraft = d => !!(d && (d.detail || d.status || d.catatan || d.progressStatus));
+
             const getPersonalTime = (row, category) => {
                 const raw = row?.[category + 'Timestamp'] || row?.[category + 'RawTime'] || row?.updatedAt || 0;
                 const n = Number(raw);
@@ -3526,49 +3558,49 @@
             const tugSource = chooseLatest(getPersonalTime(personal, 'tugas'), lastTugObj);
 
             const bacaanVal = window.cleanReportDetail(
-                bacSource === 'personal' ? (personal?.bacaan || '') : (lastBacObj?.detail || '')
+                hasDraft(draftBac) ? draftBac.detail : (bacSource === 'personal' ? (personal?.bacaan || '') : (lastBacObj?.detail || ''))
             );
             const bacaanStat = String(
-                bacSource === 'personal' ? (personal?.bacaanNilai || '') : (lastBacObj?.status || '')
+                hasDraft(draftBac) ? draftBac.status : (bacSource === 'personal' ? (personal?.bacaanNilai || '') : (lastBacObj?.status || ''))
             ).trim();
             const bacaanProgressStatus = String(
-                bacSource === 'personal' ? (personal?.bacaanStatus || '') : (lastBacObj?.progressStatus || '')
+                hasDraft(draftBac) ? draftBac.progressStatus : (bacSource === 'personal' ? (personal?.bacaanStatus || '') : (lastBacObj?.progressStatus || ''))
             ).trim();
             const bacaanCat = window.cleanReportCatatan(
-                bacSource === 'personal' ? (personal?.bacaanKeterangan || '') : (lastBacObj?.catatan || '')
+                hasDraft(draftBac) ? draftBac.catatan : (bacSource === 'personal' ? (personal?.bacaanKeterangan || '') : (lastBacObj?.catatan || ''))
             );
 
             const hafalanVal = window.cleanReportDetail(
-                hafSource === 'personal' ? (personal?.hafalan || '') : (lastHafObj?.detail || '')
+                hasDraft(draftHaf) ? draftHaf.detail : (hafSource === 'personal' ? (personal?.hafalan || '') : (lastHafObj?.detail || ''))
             );
             const hafalanStat = String(
-                hafSource === 'personal' ? (personal?.hafalanNilai || '') : (lastHafObj?.status || '')
+                hasDraft(draftHaf) ? draftHaf.status : (hafSource === 'personal' ? (personal?.hafalanNilai || '') : (lastHafObj?.status || ''))
             ).trim();
             const hafalanProgressStatus = String(
-                hafSource === 'personal' ? (personal?.hafalanStatus || '') : (lastHafObj?.progressStatus || '')
+                hasDraft(draftHaf) ? draftHaf.progressStatus : (hafSource === 'personal' ? (personal?.hafalanStatus || '') : (lastHafObj?.progressStatus || ''))
             ).trim();
             const hafalanCat = window.cleanReportCatatan(
-                hafSource === 'personal' ? (personal?.hafalanKeterangan || '') : (lastHafObj?.catatan || '')
+                hasDraft(draftHaf) ? draftHaf.catatan : (hafSource === 'personal' ? (personal?.hafalanKeterangan || '') : (lastHafObj?.catatan || ''))
             );
 
             const murojaahVal = window.cleanReportDetail(
-                murSource === 'personal' ? (personal?.murojaah || '') : (lastMurObj?.detail || '')
+                hasDraft(draftMur) ? draftMur.detail : (murSource === 'personal' ? (personal?.murojaah || '') : (lastMurObj?.detail || ''))
             );
             const murojaahStat = String(
-                murSource === 'personal' ? (personal?.murojaahNilai || '') : (lastMurObj?.status || '')
+                hasDraft(draftMur) ? draftMur.status : (murSource === 'personal' ? (personal?.murojaahNilai || '') : (lastMurObj?.status || ''))
             ).trim();
             const murojaahProgressStatus = String(
-                murSource === 'personal' ? (personal?.murojaahStatus || '') : (lastMurObj?.progressStatus || '')
+                hasDraft(draftMur) ? draftMur.progressStatus : (murSource === 'personal' ? (personal?.murojaahStatus || '') : (lastMurObj?.progressStatus || ''))
             ).trim();
             const murojaahCat = window.cleanReportCatatan(
-                murSource === 'personal' ? (personal?.murojaahKeterangan || '') : (lastMurObj?.catatan || '')
+                hasDraft(draftMur) ? draftMur.catatan : (murSource === 'personal' ? (personal?.murojaahKeterangan || '') : (lastMurObj?.catatan || ''))
             );
 
             const tugasVal = window.cleanReportDetail(
-                tugSource === 'personal' ? (personal?.tugas || '') : (lastTugObj?.detail || '')
+                hasDraft(draftTug) ? draftTug.detail : (tugSource === 'personal' ? (personal?.tugas || '') : (lastTugObj?.detail || ''))
             );
             const tugasCat = window.cleanReportCatatan(
-                tugSource === 'personal' ? (personal?.tugasKeterangan || '') : (lastTugObj?.catatan || '')
+                hasDraft(draftTug) ? draftTug.catatan : (tugSource === 'personal' ? (personal?.tugasKeterangan || '') : (lastTugObj?.catatan || ''))
             );
 
             const isValidText = (txt) => {
@@ -3616,8 +3648,29 @@
                 const f = v => { const d = new Date(`${v}T00:00:00`); const m = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des']; return `${d.getDate()} ${m[d.getMonth()]}`; };
                 return `${f(mulai)} s.d ${f(selesai)} ( ${hari} Hari )`;
             };
-            const currentHafalanTarget = targetDbForLive?.hafalan?.[s.name]?.jangkaPendek || null;
-            const murojaahTarget = targetDbForLive?.murojaah?.[s.name] || null;
+            // Target Live WA juga membaca kolom Target yang sedang diedit.
+            // Jadi perubahan surat/ayat/periode langsung terlihat tanpa Save.
+            const readDraftTarget = (type, slot) => {
+                try {
+                    const p = type === 'hafalan' ? `Hafalan${slot === 'jangkaPendek' ? 'JangkaPendek' : 'AkanDatang'}` : 'Murojaah';
+                    const suf = type === 'hafalan' ? `_${s.name}` : `_${s.name}`;
+                    const get = id => document.getElementById(id)?.value || '';
+                    const surat = get(`inputTarget${p}Surat${suf}`) || get(`inputTarget${p}SuratSearch${suf}`);
+                    const ayat = Number(get(`inputTarget${p}Ayat${suf}`) || 0);
+                    const juz = get(`inputTarget${p}Juz${suf}`);
+                    const mulai = get(`inputTarget${p}Mulai${suf}`);
+                    const selesai = get(`inputTarget${p}Selesai${suf}`);
+                    if (!surat && !ayat && !mulai && !selesai) return null;
+                    const izin = document.getElementById(`inputTarget${p}TampilLaporan${suf}`)?.checked !== false;
+                    return { surat, ayat, juz, mulai, selesai, tampilLaporan: izin, items: surat && ayat > 0 ? [{surat, ayat, juz, tampilLaporan: izin}] : [] };
+                } catch (_) { return null; }
+            };
+            const savedHafalanTarget = targetDbForLive?.hafalan?.[s.name]?.jangkaPendek || null;
+            const savedMurojaahTarget = targetDbForLive?.murojaah?.[s.name] || null;
+            const draftHafalanTarget = readDraftTarget('hafalan','jangkaPendek');
+            const draftMurojaahTarget = readDraftTarget('murojaah','legacy');
+            const currentHafalanTarget = (draftHafalanTarget?.surat || draftHafalanTarget?.ayat || draftHafalanTarget?.mulai || draftHafalanTarget?.selesai) ? {...savedHafalanTarget, ...draftHafalanTarget} : savedHafalanTarget;
+            const murojaahTarget = (draftMurojaahTarget?.surat || draftMurojaahTarget?.ayat || draftMurojaahTarget?.mulai || draftMurojaahTarget?.selesai) ? {...savedMurojaahTarget, ...draftMurojaahTarget} : savedMurojaahTarget;
             const targetHafalanLive = (() => {
                 if (!includeTargetInLiveTab1 || !currentHafalanTarget) return '';
                 const visibleTarget=targetForLive(currentHafalanTarget);
@@ -3712,6 +3765,22 @@
             window.updateInlineLiveReportTabButtons?.();
             window.setReportSheetStatus('personal');
         };
+
+        // Target juga bersifat live: setiap perubahan kolom Target langsung
+        // memperbarui WA Live, tanpa menekan tombol Simpan.
+        document.addEventListener('input', function(e) {
+            const id = String(e.target?.id || '');
+            if (/^inputTarget(HafalanJangkaPendek|Murojaah)(Surat|SuratSearch|Ayat|Mulai|Selesai|Juz)_/.test(id)) {
+                clearTimeout(window._rqLiveTargetRefreshTimer);
+                window._rqLiveTargetRefreshTimer = setTimeout(() => { try { window.generateWaReport?.(); } catch (_) {} }, 20);
+            }
+        });
+        document.addEventListener('change', function(e) {
+            const id = String(e.target?.id || '');
+            if (/^inputTarget(HafalanJangkaPendek|Murojaah)(Surat|Ayat|Mulai|Selesai|TampilLaporan)_/.test(id)) {
+                setTimeout(() => { try { window.generateWaReport?.(); } catch (_) {} }, 20);
+            }
+        });
 
         window.refreshLiveMurojaahReport = function() {
             if (window.selectedWaSantriName && typeof window.generateWaReport === 'function') {
@@ -4393,6 +4462,75 @@
             }
         };
 
+        // ============================================================
+        // IMPORT CSV BESAR — CHUNKED READER 2026-10-07
+        // Membaca File/Blob bertahap agar tidak membuat salinan text besar
+        // sekaligus di RAM. Format CSV tetap Type,Key,Value dan parser
+        // tetap mendukung quoted field, escaped quote ("") dan newline.
+        // ============================================================
+        window.rqParseOfflineCsvChunked = async function(file, onProgress) {
+            if (!file) throw new Error('File CSV tidak ditemukan.');
+            if (typeof file.stream !== 'function') {
+                // Fallback browser lama; tetap memakai parser resmi.
+                const text = await file.text();
+                return window.parseOfflineCsv(text);
+            }
+            const reader = file.stream().getReader();
+            const decoder = new TextDecoder('utf-8');
+            const rows = [];
+            let row = [], cell = '';
+            let quoted = false, afterQuote = false;
+            let firstChunk = true, loaded = 0;
+            const total = Number(file.size) || 0;
+            const emit = () => {
+                if (typeof onProgress === 'function') {
+                    try { onProgress(total ? Math.min(100, loaded / total * 100) : 100, loaded, total); } catch (_) {}
+                }
+            };
+            const consume = (src, final) => {
+                if (firstChunk) { src = src.replace(/^\uFEFF/, ''); firstChunk = false; }
+                for (let i = 0; i < src.length; i++) {
+                    const ch = src[i];
+                    if (afterQuote) {
+                        if (ch === '"') { cell += '"'; afterQuote = false; continue; }
+                        quoted = false; afterQuote = false;
+                        // lanjut proses karakter yang sama sebagai mode non-quoted
+                    }
+                    if (quoted) {
+                        if (ch === '"') afterQuote = true;
+                        else cell += ch;
+                        continue;
+                    }
+                    if (ch === '"') quoted = true;
+                    else if (ch === ',') { row.push(cell); cell = ''; }
+                    else if (ch === '\n') { row.push(cell); rows.push(row); row = []; cell = ''; }
+                    else if (ch === '\r') { /* abaikan CR */ }
+                    else cell += ch;
+                }
+                if (final) {
+                    if (afterQuote) { quoted = false; afterQuote = false; }
+                    if (cell !== '' || row.length) { row.push(cell); rows.push(row); row = []; cell = ''; }
+                }
+            };
+            try {
+                while (true) {
+                    const part = await reader.read();
+                    if (part.done) break;
+                    loaded += part.value?.byteLength || 0;
+                    consume(decoder.decode(part.value, { stream: true }), false);
+                    emit();
+                    // Beri kesempatan browser menggambar UI/progress sebelum chunk berikutnya.
+                    await new Promise(resolve => setTimeout(resolve, 0));
+                }
+                consume(decoder.decode(), true);
+                emit();
+                return rows.filter(r => r.some(v => String(v ?? '').trim() !== ''));
+            } catch (e) {
+                try { await reader.cancel(); } catch (_) {}
+                throw e;
+            }
+        };
+
         window.parseOfflineCsv = function(text) {
             const src = String(text || '').replace(/^\uFEFF/, '');
             const rows = [];
@@ -4560,22 +4698,17 @@
 
         window.importAllLocalDataFromCsv = async function(file, mode = 'replace', skipConfirm = false) {
             if (!file) return;
+            let beforeStorage = null;
             try {
                 const operator = window.rqGetImportOperator();
                 if (!operator.name) { window.showToast('Nama penginput wajib diisi sebelum Import/Merge.', 'error'); return; }
                 if (!operator.device) { window.showToast('Pilih perangkat Laptop/HP sebelum Import/Merge.', 'error'); return; }
                 window.rqSaveImportOperator();
-
-                // Snapshot hanya untuk GANTI. GABUNGKAN antar-perangkat tidak membuat
-                // snapshot besar yang dapat memenuhi Local Storage pada HP.
-                const beforeStorage = {};
-                for (let i=0;i<localStorage.length;i++){
-                    const k=localStorage.key(i);
-                    if(k && k.startsWith('rq_')) beforeStorage[k]=localStorage.getItem(k);
-                }
-
-                const text = await file.text();
-                const rows = window.parseOfflineCsv(text);
+                beforeStorage = {};
+                for (let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(k && k.startsWith('rq_')) beforeStorage[k]=localStorage.getItem(k); }
+                const rows = await window.rqParseOfflineCsvChunked(file, (pct) => {
+                    if (box) box.innerHTML = `<div class="flex items-center gap-2 font-black text-sky-800 dark:text-sky-300"><i class="fa-solid fa-spinner fa-spin"></i> Membaca file CSV... ${pct.toFixed(0)}%</div><div class="text-xs font-bold text-slate-600 dark:text-slate-400 mt-1">File diproses bertahap agar tidak membebani browser.</div>`;
+                });
                 if (!rows.length || rows[0][0] !== 'Type' || rows[0][1] !== 'Key' || rows[0][2] !== 'Value') {
                     throw new Error('Format CSV tidak dikenali. Gunakan CSV hasil Download Semua Data Offline.');
                 }
@@ -4585,10 +4718,9 @@
                 const imported = {};
                 let importedSantri = null;
                 for (let i = 1; i < rows.length; i++) {
-                    const row = rows[i] || [];
-                    const type = String(row[0] ?? '').trim();
-                    const key = String(row[1] ?? '').trim();
-                    const value = String(row[2] ?? '');
+                    const type = String(rows[i][0] ?? '').trim();
+                    const key = String(rows[i][1] ?? '').trim();
+                    const value = String(rows[i][2] ?? '');
                     if (type === 'meta' && key === 'format') formatOk = value === 'rq-al-khansa-local-csv';
                     else if (type === 'meta' && key === 'version') version = value;
                     else if (type === 'meta' && window.rqVersionMetaKeys.includes(key)) sourceMeta[key] = value;
@@ -4600,8 +4732,12 @@
 
                 if (!formatOk || version !== '1') throw new Error('CSV bukan file data offline RQ Al-Khansa atau versinya tidak didukung.');
                 if (!Object.keys(imported).length && !Array.isArray(importedSantri)) throw new Error('CSV tidak berisi data aplikasi.');
-                if (Array.isArray(importedSantri) && importedSantri.some(x => !x || typeof x !== 'object' || Array.isArray(x))) {
-                    throw new Error('Data Master Santri dalam CSV tidak valid.');
+                // Setelah semua isi penting dipindahkan ke struktur import, lepaskan array rows
+                // agar memori browser tidak menahan seluruh tabel CSV selama proses merge.
+                rows = null;
+                if (Array.isArray(importedSantri)) {
+                    const invalidMaster = importedSantri.some(x => !x || typeof x !== 'object' || Array.isArray(x));
+                    if (invalidMaster) throw new Error('Data Master Santri dalam CSV tidak valid.');
                 }
 
                 const modeLabel = mode === 'merge' ? 'GABUNGKAN' : 'GANTI';
@@ -4611,220 +4747,306 @@
                     const ok = confirm(
                         `IMPORT DATA OFFLINE — ${modeLabel}\n\n` +
                         (mode === 'merge'
-                            ? 'Data dari perangkat/file ini akan DIGABUNGKAN dengan data perangkat sekarang. Data lama tidak dihapus. Data dari kedua perangkat dipertahankan.\n'
+                            ? 'Data dari CSV akan digabung dengan data lokal yang sekarang. Data lama tidak dihapus.\nUntuk data yang sama, data dari CSV menjadi versi terbaru.\n'
                             : 'Data aplikasi lokal saat ini akan diganti dengan data dari CSV.\nData browser di luar kunci rq_* tetap tidak disentuh.\n') +
                         `\nKunci dari CSV: ${jumlah}` + (Array.isArray(importedSantri) ? `\nSantri dari CSV: ${importedSantri.length}` : '') +
-                        `\n\nLanjutkan?`
+                        `\n\nJika Backup Pengaman ON, backup akan disimpan ke folder yang Anda pilih sebelum impor.\nLanjutkan?`
                     );
                     if (!ok) return;
                 }
 
-                const readLocal = key => { try { return localStorage.getItem(key); } catch (_) { return null; } };
-                const parseJson = value => { try { return value == null || value === '' ? null : JSON.parse(value); } catch (_) { return null; } };
-                const isObj = v => !!v && typeof v === 'object' && !Array.isArray(v);
-                const nonEmpty = v => !(v === undefined || v === null || (typeof v === 'string' && v.trim() === ''));
-                const signature = item => {
-                    try { return JSON.stringify(item, Object.keys(item || {}).sort()); } catch (_) { try { return JSON.stringify(item); } catch (_) { return String(item); } }
-                };
-                const mergeArrayPreserveBoth = (current, incoming) => {
-                    const out = Array.isArray(current) ? current.slice() : [];
-                    const seen = new Set(out.map(signature));
-                    for (const item of (Array.isArray(incoming) ? incoming : [])) {
-                        const sig = signature(item);
-                        if (!seen.has(sig)) { out.push(item); seen.add(sig); }
+                // BACKUP PENGAMAN UNTUK IMPORT CSV
+                // Pada HP/browser tertentu, Folder Backup Pengaman dapat gagal atau
+                // tidak didukung walaupun proses Import CSV sendiri bisa berjalan.
+                // Jangan memblokir MERGE hanya karena folder backup tidak tersedia.
+                // Fallback menggunakan Undo Snapshot lokal yang tetap tersimpan di localStorage.
+                let safetyBackupOk = true;
+                try {
+                    if (typeof window.rqCreateSafetyBackup === 'function') {
+                        safetyBackupOk = await window.rqCreateSafetyBackup('sebelum-import-csv-' + mode);
                     }
-                    return out;
-                };
-                const mergeObjectPreserveBoth = (current, incoming) => {
-                    const out = isObj(current) ? { ...current } : {};
-                    if (!isObj(incoming)) return out;
-                    for (const [k,v] of Object.entries(incoming)) {
-                        if (!nonEmpty(v)) continue;
-                        const old = out[k];
-                        if (Array.isArray(v)) out[k] = mergeArrayPreserveBoth(old, v);
-                        else if (isObj(v) && isObj(old)) out[k] = mergeObjectPreserveBoth(old, v);
-                        else out[k] = v;
-                    }
-                    return out;
-                };
-                const santriKey = x => {
-                    const id = String(x?.id ?? x?.ID ?? '').trim().toLowerCase();
-                    if (id) return 'id:' + id;
-                    return 'nc:' + String(x?.name ?? x?.nama ?? '').trim().toLowerCase() + '|' + String(x?.class ?? x?.kelas ?? '').trim().toLowerCase();
-                };
-                const mergeSantri = (current, incoming) => {
-                    const map = new Map();
-                    for (const x of (Array.isArray(current) ? current : [])) if (x && typeof x === 'object') map.set(santriKey(x), { ...x });
-                    for (const x of (Array.isArray(incoming) ? incoming : [])) {
-                        if (!x || typeof x !== 'object') continue;
-                        const k = santriKey(x), old = map.get(k);
-                        map.set(k, old ? mergeObjectPreserveBoth(old, x) : { ...x });
-                    }
-                    return [...map.values()];
-                };
+                } catch (e) {
+                    console.warn('Backup Pengaman Import CSV gagal:', e);
+                    safetyBackupOk = false;
+                }
 
-                const normSurat = v => String(v ?? '').trim().toLowerCase().normalize('NFKC')
-                    .replace(/[‘’‚‛′`´]/g,"'").replace(/^[0-9]+\.\s*/, '')
-                    .replace(/\s*\(\s*[0-9]+\s*ayat\s*\)$/i, '').replace(/\s+/g,' ');
-                const mergeTargetItems = (oldItems, newItems, oldSingle) => {
-                    const map = new Map();
-                    const add = item => {
-                        if (!item || !String(item.surat || '').trim()) return;
-                        const k = normSurat(item.surat), old = map.get(k);
-                        map.set(k, old ? mergeObjectPreserveBoth(old, item) : { ...item });
-                    };
-                    for (const x of (Array.isArray(oldItems) ? oldItems : [])) add(x);
-                    if (oldSingle) add(oldSingle);
-                    for (const x of (Array.isArray(newItems) ? newItems : [])) add(x);
-                    return [...map.values()];
+                if (!safetyBackupOk) {
+                    let snapshotOk = false;
+                    try {
+                        if (typeof window.rqCreateUndoSnapshot === 'function') {
+                            snapshotOk = !!window.rqCreateUndoSnapshot('sebelum-import-csv-' + mode + '-mobile-fallback');
+                        }
+                    } catch (e) {
+                        console.warn('Fallback Undo Snapshot Import CSV gagal:', e);
+                        snapshotOk = false;
+                    }
+
+                    if (!snapshotOk) {
+                        throw new Error('Backup Pengaman dan cadangan lokal tidak berhasil dibuat. Import dibatalkan agar data lama tetap aman.');
+                    }
+
+                    window.showToast(
+                        'Backup folder belum tersedia. Cadangan lokal otomatis dibuat, lalu Import CSV dilanjutkan.',
+                        'info'
+                    );
+                }
+
+                const readLocal = key => {
+                    try { return localStorage.getItem(key); } catch (_) { return null; }
                 };
-                const mergeOneTarget = (oldTarget, newTarget) => {
-                    if (!oldTarget && !newTarget) return null;
-                    if (!oldTarget) return newTarget ? { ...newTarget } : null;
-                    if (!newTarget) return { ...oldTarget };
-                    const out = mergeObjectPreserveBoth(oldTarget, newTarget);
-                    const items = mergeTargetItems(oldTarget.items, newTarget.items, oldTarget.surat ? oldTarget : null);
-                    if (items.length) {
-                        out.items = items;
-                        out.surat = items[0].surat || out.surat || '';
-                        out.ayat = items.reduce((n,x) => n + (Number(x.ayat)||0), 0);
-                        out.juz = items[0].juz || out.juz || '';
-                        out.tampilLaporan = items.some(x => x.tampilLaporan !== false);
+                const parseJson = value => {
+                    try { return JSON.parse(value); } catch (_) { return null; }
+                };
+                const dedupeArray = arr => {
+                    const out = [], seen = new Set();
+                    for (const item of Array.isArray(arr) ? arr : []) {
+                        let sig;
+                        try { sig = JSON.stringify(item); } catch (_) { sig = String(item); }
+                        if (!seen.has(sig)) { seen.add(sig); out.push(item); }
                     }
                     return out;
+                };
+                const mergeByKey = (current, incoming, keyFn) => {
+                    const map = new Map();
+                    for (const item of Array.isArray(current) ? current : []) map.set(keyFn(item), item);
+                    for (const item of Array.isArray(incoming) ? incoming : []) map.set(keyFn(item), item);
+                    return [...map.values()];
                 };
                 const mergeTargetDb = (current, incoming) => {
-                    const out = isObj(current) ? { ...current } : {};
+                    const out = { ...(current && typeof current === 'object' ? current : {}) };
+                    const normSurat = v => String(v ?? '').trim().toLowerCase().normalize('NFKC').replace(/[‘’‚‛′`´]/g, "'").replace(/^[0-9]+\.\s*/, '').replace(/\s*\(\s*[0-9]+\s*ayat\s*\)$/i, '').replace(/\s+/g, ' ');
+                    const mergeItems = (oldItems, newItems, fallbackOld) => {
+                        const oldArr = Array.isArray(oldItems) && oldItems.length ? oldItems : (fallbackOld ? [fallbackOld] : []);
+                        const newArr = Array.isArray(newItems) && newItems.length ? newItems : [];
+                        const map = new Map();
+                        for (const item of oldArr) {
+                            if (!item || !String(item.surat || '').trim()) continue;
+                            map.set(normSurat(item.surat), { ...item });
+                        }
+                        for (const item of newArr) {
+                            if (!item || !String(item.surat || '').trim()) continue;
+                            const k = normSurat(item.surat), old = map.get(k);
+                            if (old) {
+                                // Data baru memperbarui surat yang sama, tetapi izin lama
+                                // dipertahankan jika file baru tidak membawa field izin.
+                                map.set(k, {
+                                    ...old,
+                                    ...item,
+                                    tampilLaporan: Object.prototype.hasOwnProperty.call(item, 'tampilLaporan')
+                                        ? item.tampilLaporan !== false
+                                        : old.tampilLaporan !== false
+                                });
+                            } else {
+                                map.set(k, { ...item, tampilLaporan: item.tampilLaporan !== false });
+                            }
+                        }
+                        return [...map.values()];
+                    };
+                    const normalizeTarget = (target, oldTarget) => {
+                        if (!target && !oldTarget) return null;
+                        if (!target) return oldTarget ? { ...oldTarget } : null;
+                        const base = oldTarget && typeof oldTarget === 'object' ? { ...oldTarget } : {};
+                        const merged = { ...base, ...target };
+                        const items = mergeItems(oldTarget?.items, target?.items, oldTarget?.surat ? oldTarget : null);
+                        if (items.length) {
+                            merged.items = items;
+                            merged.surat = items[0].surat;
+                            merged.ayat = items.reduce((n, x) => n + Number(x.ayat || 0), 0);
+                            merged.juz = items[0].juz || merged.juz || '';
+                            merged.tampilLaporan = items[0].tampilLaporan !== false;
+                        }
+                        return merged;
+                    };
                     for (const type of ['hafalan','murojaah']) {
-                        const c = isObj(current?.[type]) ? current[type] : {};
-                        const inc = isObj(incoming?.[type]) ? incoming[type] : {};
+                        const c = current?.[type] && typeof current[type] === 'object' ? current[type] : {};
+                        const inc = incoming?.[type] && typeof incoming[type] === 'object' ? incoming[type] : {};
                         out[type] = { ...c };
                         for (const name of Object.keys(inc)) {
                             if (type === 'hafalan') {
-                                const old = isObj(c[name]) ? c[name] : {};
-                                const neu = isObj(inc[name]) ? inc[name] : {};
-                                out[type][name] = mergeObjectPreserveBoth(old, neu);
-                                for (const fld of ['jangkaPendek','akanDatang']) out[type][name][fld] = mergeOneTarget(old[fld], neu[fld]);
+                                const prev = c[name] && typeof c[name] === 'object' ? c[name] : {};
+                                out[type][name] = {
+                                    ...prev,
+                                    ...inc[name],
+                                    jangkaPendek: normalizeTarget(inc[name]?.jangkaPendek, prev.jangkaPendek),
+                                    akanDatang: normalizeTarget(inc[name]?.akanDatang, prev.akanDatang)
+                                };
                             } else {
-                                out[type][name] = mergeOneTarget(c[name], inc[name]);
+                                out[type][name] = normalizeTarget(inc[name], c[name]);
                             }
                         }
                     }
-                    for (const [k,v] of Object.entries(incoming || {})) if (!['hafalan','murojaah'].includes(k) && nonEmpty(v)) {
-                        if (Array.isArray(v)) out[k] = mergeArrayPreserveBoth(out[k], v);
-                        else if (isObj(v) && isObj(out[k])) out[k] = mergeObjectPreserveBoth(out[k], v);
-                        else out[k] = v;
-                    }
+                    for (const key of Object.keys(incoming || {})) if (!['hafalan','murojaah'].includes(key)) out[key] = incoming[key];
                     return out;
                 };
 
-                // Kunci yang memang bersifat perangkat/UI tidak dipindahkan antar HP/laptop.
-                const deviceLocalOnlyKeys = new Set([
-                    'rq_undo_snapshots_v1','rq_import_history_v1','rq_activity_log_v1',
-                    'rq_import_operator_name','rq_import_operator_device','rq_backend_device_id_v2',
-                    'rq_mobile_header_pro_position_v13','rq_gs_url','rq_current_teacher','currentTeacher',
-                    'selectedTeacher','teacherName','rq_offline_panel_open','rq_dark_mode','rq_tracker_dark',
-                    'rq_live_report_font_size','rq_inline_live_report_tab','rq_inline_live_report_open',
-                    'rq_inline_live_report_type','rq_inline_live_tab1_include_target','rq_safety_backup_enabled',
-                    'rq_version_file_counter_v1','rq_version_import_counter_v1','rq_version_history_v1',
-                    'rq_version_operator_name','rq_version_device','rq_version_device_name',
-                    'rq_pending_sync_queue','rq_pending_sync_v1','rq_device_id','rq_device_id_v2',
-                    'rq_cloud_device_id_v1','rq_manual_sync_log_v1','rq_input_sync_local_v1',
-                    'rq_google_script_web_app_url_v1'
-                ]);
-
                 if (mode === 'replace') {
-                    const oldKeys=[];
-                    for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(k&&k.startsWith('rq_')) oldKeys.push(k); }
-                    oldKeys.forEach(k=>{try{localStorage.removeItem(k);}catch(_){}});
-                    for (const [k,v] of Object.entries(imported)) localStorage.setItem(k,v);
+                    const oldKeys = [];
+                    for (let i = 0; i < localStorage.length; i++) {
+                        const k = localStorage.key(i);
+                        if (k && k.startsWith('rq_')) oldKeys.push(k);
+                    }
+                    oldKeys.forEach(k => localStorage.removeItem(k));
+                    Object.entries(imported).forEach(([k, v]) => localStorage.setItem(k, v));
                     if (Array.isArray(importedSantri)) {
                         window.santriList = importedSantri;
-                        localStorage.setItem('rq_santri_master',JSON.stringify(importedSantri));
+                        localStorage.setItem('rq_santri_master', JSON.stringify(importedSantri));
+                    } else {
+                        window.santriList = [];
+                        localStorage.removeItem('rq_santri_master');
                     }
                 } else {
-                    // GABUNGKAN DUA ARAH: data perangkat sekarang menjadi basis,
-                    // lalu data perangkat lain ditambahkan tanpa menghapus data sekarang.
-                    for (const [key,incomingValue] of Object.entries(imported)) {
+                    // MERGE aman antar-perangkat:
+                    // Jangan membawa data yang memang bersifat lokal/perangkat ke perangkat lain.
+                    // Khususnya rq_undo_snapshots_v1 dapat berukuran MB dan bila ikut digabung
+                    // dapat membuat Local Storage penuh sehingga proses Merge terlihat gagal.
+                    const deviceLocalOnlyKeys = new Set([
+                        'rq_undo_snapshots_v1',
+                        'rq_import_history_v1',
+                        'rq_activity_log_v1',
+                        'rq_import_operator_name',
+                        'rq_import_operator_device',
+                        'rq_backend_device_id_v2',
+                        'rq_mobile_header_pro_position_v13',
+                        'rq_gs_url',
+                        'rq_current_teacher',
+                        'currentTeacher',
+                        'selectedTeacher',
+                        'teacherName',
+                        'rq_offline_panel_open',
+                        'rq_dark_mode',
+                        'rq_tracker_dark',
+                        'rq_live_report_font_size',
+                        'rq_inline_live_report_tab',
+                        'rq_inline_live_report_open',
+                        'rq_inline_live_report_type',
+                        'rq_inline_live_tab1_include_target',
+                        'rq_safety_backup_enabled',
+                        'rq_version_file_counter_v1',
+                        'rq_version_import_counter_v1',
+                        'rq_version_history_v1',
+                        'rq_version_operator_name',
+                        'rq_version_device',
+                        'rq_version_device_name',
+                        'rq_pending_sync_queue',
+                        'rq_pending_sync_v1',
+                        'rq_device_id',
+                        'rq_device_id_v2',
+                        'rq_cloud_device_id_v1',
+                        'rq_manual_sync_log_v1',
+                        'rq_input_sync_local_v1',
+                        'rq_google_script_web_app_url_v1'
+                    ]);
+                    for (const [key, incomingValue] of Object.entries(imported)) {
                         if (deviceLocalOnlyKeys.has(key)) continue;
                         const currentValue = readLocal(key);
                         const incomingJson = parseJson(incomingValue);
                         const currentJson = parseJson(currentValue);
-                        let mergedValue = incomingValue;
-
-                        if (key === 'rq_target_hafalan_murojaah_v2' && (isObj(incomingJson) || isObj(currentJson))) {
-                            mergedValue = JSON.stringify(mergeTargetDb(currentJson || {}, incomingJson || {}));
-                        } else if (key === 'rq_santri_master') {
-                            mergedValue = JSON.stringify(mergeSantri(Array.isArray(currentJson)?currentJson:[], Array.isArray(incomingJson)?incomingJson:[]));
-                        } else if (Array.isArray(incomingJson)) {
-                            mergedValue = JSON.stringify(mergeArrayPreserveBoth(Array.isArray(currentJson)?currentJson:[], incomingJson));
-                        } else if (isObj(incomingJson)) {
-                            mergedValue = JSON.stringify(mergeObjectPreserveBoth(isObj(currentJson)?currentJson:{}, incomingJson));
-                        } else if (!nonEmpty(incomingValue) && nonEmpty(currentValue)) {
-                            mergedValue = currentValue;
-                        } else if (!nonEmpty(currentValue) && nonEmpty(incomingValue)) {
+                        let mergedValue;
+                        if (key === 'rq_target_hafalan_murojaah_v2' && incomingJson && typeof incomingJson === 'object') {
+                            mergedValue = JSON.stringify(mergeTargetDb(currentJson || {}, incomingJson));
+                        } else if (key === 'rq_form_input_state_v1' && incomingJson && typeof incomingJson === 'object' && !Array.isArray(incomingJson) && currentJson && typeof currentJson === 'object' && !Array.isArray(currentJson)) {
+                            mergedValue = JSON.stringify({ ...(currentJson || {}), ...incomingJson });
+                        } else if (Array.isArray(incomingJson) && Array.isArray(currentJson)) {
+                            mergedValue = JSON.stringify(dedupeArray([...currentJson, ...incomingJson]));
+                        } else {
                             mergedValue = incomingValue;
                         }
-
-                        // Jangan menulis ulang nilai identik; ini mengurangi risiko quota HP.
-                        if (String(currentValue ?? '') !== String(mergedValue ?? '')) localStorage.setItem(key, mergedValue);
+                        try {
+                            localStorage.setItem(key, mergedValue);
+                        } catch (storageErr) {
+                            throw new Error(`Penyimpanan browser penuh saat menggabungkan ${key}. Data lama akan dipulihkan. (${storageErr?.message || storageErr})`);
+                        }
                     }
-
                     if (Array.isArray(importedSantri)) {
                         const currentSantri = parseJson(readLocal('rq_santri_master')) || window.santriList || [];
-                        const mergedSantri = mergeSantri(currentSantri, importedSantri);
+                        const keyFn = x => String(x?.id || '').trim() || `${String(x?.name || '').trim().toLowerCase()}|${String(x?.class || '').trim().toLowerCase()}`;
+                        const mergedSantri = mergeByKey(currentSantri, importedSantri, keyFn);
                         window.santriList = mergedSantri;
-                        const mergedText = JSON.stringify(mergedSantri);
-                        if (readLocal('rq_santri_master') !== mergedText) localStorage.setItem('rq_santri_master', mergedText);
+                        try {
+                            localStorage.setItem('rq_santri_master', JSON.stringify(mergedSantri));
+                        } catch (storageErr) {
+                            throw new Error(`Penyimpanan browser penuh saat menyimpan Master Santri. Data lama akan dipulihkan. (${storageErr?.message || storageErr})`);
+                        }
                     }
                 }
-
-                // Lepaskan referensi besar sebelum proses UI berikutnya.
-                try { rows.length = 0; } catch (_) {}
 
                 const targetAfter = parseJson(readLocal('rq_target_hafalan_murojaah_v2')) || {};
                 const targetAfterH = targetAfter?.hafalan && typeof targetAfter.hafalan === 'object' ? Object.keys(targetAfter.hafalan).length : 0;
                 const targetAfterM = targetAfter?.murojaah && typeof targetAfter.murojaah === 'object' ? Object.keys(targetAfter.murojaah).length : 0;
                 const resultBox = document.getElementById('rqOfflineCsvImportStatus');
                 if (resultBox) {
-                    resultBox.className='mt-3 rounded-xl border-2 border-emerald-300 bg-emerald-50 dark:bg-slate-900/70 dark:border-emerald-800 p-4';
-                    resultBox.innerHTML=`<div class="flex items-center gap-2 font-black text-emerald-700 dark:text-emerald-300"><i class="fa-solid fa-circle-check"></i> Import berhasil</div>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3 text-xs">
-                    <div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5"><b>Mode:</b><br>${mode==='merge'?'Gabungkan Antar-Perangkat':'Ganti'}</div>
-                    <div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5"><b>File:</b><br>${String(file.name).replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]))}</div>
-                    <div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5"><b>Kunci data:</b><br>${jumlah}</div>
-                    <div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5"><b>Master santri dari file:</b><br>${Array.isArray(importedSantri)?importedSantri.length:0}</div>
-                    <div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5"><b>Target Hafalan:</b><br>${targetAfterH} santri</div>
-                    <div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5"><b>Target Muroja’ah:</b><br>${targetAfterM} santri</div></div>
-                    <div class="mt-3 text-xs font-black text-emerald-700 dark:text-emerald-300">✓ Data perangkat sekarang dipertahankan dan data dari file digabungkan.</div>
-                    <div class="mt-2 text-xs font-bold text-slate-600 dark:text-slate-400">Aplikasi akan dimuat ulang sebentar lagi.</div>`;
+                    resultBox.className = 'mt-3 rounded-xl border-2 border-emerald-300 bg-emerald-50 dark:bg-slate-900/70 dark:border-emerald-800 p-4';
+                    resultBox.innerHTML = `
+                        <div class="flex items-center gap-2 font-black text-emerald-700 dark:text-emerald-300"><i class="fa-solid fa-circle-check"></i> Import berhasil</div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3 text-xs">
+                            <div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5"><b>Mode:</b><br>${mode === 'merge' ? 'Gabungkan' : 'Ganti'}</div>
+                            <div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5"><b>File:</b><br>${String(file.name).replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]))}</div>
+                            <div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5"><b>Kunci data:</b><br>${jumlah}</div>
+                            <div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5"><b>Master santri:</b><br>${Array.isArray(importedSantri) ? importedSantri.length : 0}</div>
+                            <div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5"><b>Target Hafalan:</b><br>${targetAfterH} santri</div>
+                            <div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5"><b>Target Muroja’ah:</b><br>${targetAfterM} santri</div>
+                        </div>
+                        <div class="mt-3 text-xs font-black text-emerald-700 dark:text-emerald-300">✓ Backup pengaman dibuat sebelum proses. Data berhasil diperbarui.</div>
+                        <div class="mt-2 text-xs font-bold text-slate-600 dark:text-slate-400">Aplikasi akan dimuat ulang sebentar lagi untuk menampilkan data terbaru.</div>`;
                 }
                 try {
                     window.hydrateInputFormsFromHistory?.(true);
                     window.persistFormCache?.(true);
+                    // Setelah Merge/Ganti, langsung bangun ulang Live Laporan WA
+                    // dari histori lokal yang baru masuk sebelum halaman reload.
                     window.generateWaReport?.();
                     window.updateInlineLiveReportTabButtons?.();
                     window.rqMarkImportRefreshPending?.();
-                } catch(e){ console.warn('Refresh tampilan setelah Import CSV:',e); }
+                } catch (e) {
+                    console.warn('Form cache / Live Laporan dari hasil Import CSV tidak dapat diperbarui:', e);
+                }
                 try {
-                    const afterStorage={};
-                    for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&k.startsWith('rq_'))afterStorage[k]=localStorage.getItem(k);}
-                    const audit=window.rqBuildImportAudit({mode,file,operator,beforeStorage,imported,importedSantri,afterStorage});
+                    const afterStorage = {};
+                    for (let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(k && k.startsWith('rq_')) afterStorage[k]=localStorage.getItem(k); }
+                    const audit = window.rqBuildImportAudit({mode,file,operator,beforeStorage,imported,importedSantri,afterStorage});
                     window.rqSaveImportAudit(audit);
-                } catch(e){ console.warn('History Import/Merge:',e); }
+                } catch (auditErr) { console.warn('Gagal membuat History Import/Merge:', auditErr); }
                 try {
-                    localStorage.setItem('rq_version_import_counter_v1',String(previousImportCount));
-                    const receivedVersion=window.rqRecordImportedVersion(sourceMeta,file,mode);
-                    if(resultBox){const sourceText=sourceMeta.fileId?`${sourceMeta.fileId} · dibuat ${sourceMeta.createdBy||'-'} · ${sourceMeta.createdDevice||'-'} · ${sourceMeta.createdAtWib||sourceMeta.createdAt||'-'}`:'File lama tanpa metadata Versi';resultBox.innerHTML+=`<div class="mt-3 p-3 rounded-xl border-2 border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-950/30 text-xs font-bold text-indigo-900 dark:text-indigo-200"><b>IDENTITAS FILE</b><br>${sourceText}<br><b>Urutan masuk di perangkat ini:</b> FILE-IMPORT-${String(receivedVersion.importNumber).padStart(4,'0')}<br><b>Diterima oleh:</b> ${receivedVersion.importedBy} · ${receivedVersion.importedDevice} · ${receivedVersion.importedAtWib}</div>`;}
-                } catch(e){ console.warn('Gagal mencatat Versi Import:',e); }
-                window.showToast(`Import CSV ${mode==='merge'?'gabung antar-perangkat':'ganti'} berhasil.`,'success');
-                setTimeout(()=>location.reload(),2200);
-            } catch(e) {
+                    localStorage.setItem('rq_version_import_counter_v1', String(previousImportCount));
+                    const receivedVersion = window.rqRecordImportedVersion(sourceMeta, file, mode);
+                    if (resultBox) {
+                        const sourceText = sourceMeta.fileId ? `${sourceMeta.fileId} · dibuat ${sourceMeta.createdBy || '-'} · ${sourceMeta.createdDevice || '-'} · ${sourceMeta.createdAtWib || sourceMeta.createdAt || '-'}` : 'File lama tanpa metadata Versi';
+                        resultBox.innerHTML += `<div class="mt-3 p-3 rounded-xl border-2 border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-950/30 text-xs font-bold text-indigo-900 dark:text-indigo-200"><b>IDENTITAS FILE</b><br>${sourceText}<br><b>Urutan masuk di perangkat ini:</b> FILE-IMPORT-${String(receivedVersion.importNumber).padStart(4,'0')}<br><b>Diterima oleh:</b> ${receivedVersion.importedBy} · ${receivedVersion.importedDevice} · ${receivedVersion.importedAtWib}</div>`;
+                    }
+                } catch (versionErr) { console.warn('Gagal mencatat Versi Import:', versionErr); }
+                window.showToast(`Import CSV ${mode === 'merge' ? 'gabung' : 'ganti'} berhasil.`, 'success');
+                setTimeout(() => location.reload(), 2200);
+            } catch (e) {
                 console.error(e);
-                window.showToast('Import CSV gagal: '+(e?.message||e),'error');
+                if (mode === 'merge' && beforeStorage) {
+                    try {
+                        for (let i = localStorage.length - 1; i >= 0; i--) {
+                            const k = localStorage.key(i);
+                            if (k && k.startsWith('rq_')) localStorage.removeItem(k);
+                        }
+                        for (const [k, v] of Object.entries(beforeStorage)) localStorage.setItem(k, v);
+                        try { window.santriList = JSON.parse(beforeStorage['rq_santri_master'] || '[]'); } catch (_) {}
+                        window.showToast('Gabungkan CSV gagal. Data sebelum gabung dipulihkan sepenuhnya.', 'error');
+                        try {
+                            window.renderAll?.();
+                            window.refreshInlineTargets?.();
+                            window.generateWaReport?.();
+                            window.generateClassReport?.();
+                            window.renderTargetReport?.();
+                        } catch (_) {}
+                    } catch (restoreErr) {
+                        console.error('Rollback Merge gagal:', restoreErr);
+                        window.showToast('Gabungkan CSV gagal dan browser tidak dapat memulihkan otomatis. Jangan tutup halaman; lakukan reload sebelum mencoba lagi.', 'error');
+                    }
+                } else {
+                    window.showToast('Import CSV gagal: ' + (e?.message || e), 'error');
+                }
             }
         };
 
+        // IMPORT/MERGE CSV LARGE FILE FIX 2026-10-07
+        // File dibaca chunk-by-chunk; data lama dipotret sebelum merge;
+        // kunci lokal/perangkat dikecualikan; kegagalan merge memicu rollback.
         window.rqPendingCsvFile = null;
         window.rqPendingCsvImportMode = 'replace';
 
@@ -5076,8 +5298,13 @@
             }
             if (action) action.classList.add('hidden');
             try {
-                const text = await file.text();
-                const rows = window.parseOfflineCsv(text);
+                let rows = await window.rqParseOfflineCsvChunked(file, (pct) => {
+                    const progressBox = document.getElementById('rqOfflineCsvImportStatus');
+                    if (progressBox) {
+                        progressBox.className = 'mt-3 rounded-xl border-2 border-sky-200 bg-sky-50 dark:bg-slate-900/70 dark:border-sky-800 p-4';
+                        progressBox.innerHTML = `<div class="flex items-center gap-2 font-black text-sky-800 dark:text-sky-300"><i class="fa-solid fa-spinner fa-spin"></i> Membaca file CSV... ${pct.toFixed(0)}%</div><div class="text-xs font-bold text-slate-600 dark:text-slate-400 mt-1">File besar diproses bertahap agar browser tetap ringan.</div>`;
+                    }
+                });
                 if (!rows.length || rows[0][0] !== 'Type' || rows[0][1] !== 'Key' || rows[0][2] !== 'Value') {
                     throw new Error('Format CSV tidak dikenali. Gunakan CSV hasil Download Semua Data CSV.');
                 }
@@ -10793,3 +11020,148 @@ html.dark #rqSafetyBackupBox #rqSafetyBackupLocation b{color:#ecfdf5 !important}
             }
         };
 </script>
+
+<script id="rq-input-persistence-final-fix-2026-10-07">
+/* ============================================================
+   INPUT PERSISTENCE FINAL FIX 2026-10-07
+   - Semua nilai kolom Input yang pernah diisi dipertahankan.
+   - Nilai hanya berubah menjadi kosong jika operator memang menghapusnya.
+   - Snapshot DOM ikut disimpan agar render ulang tidak mengosongkan form.
+   - Target juga dipulihkan ke kolomnya setelah render/reload/import.
+   ============================================================ */
+(function(){
+  const KEY='rq_form_dom_snapshot_v2';
+  const read=()=>{try{const x=JSON.parse(localStorage.getItem(KEY)||'{}');return x&&typeof x==='object'?x:{}}catch(_){return {}}};
+  let snap=read(), timer=0;
+  const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(snap));}catch(_){} };
+  const schedule=()=>{clearTimeout(timer);timer=setTimeout(save,180)};
+  const isFormField=el=>{
+    if(!el||!el.id)return false;
+    const tag=String(el.tagName||'').toLowerCase();
+    if(!['input','select','textarea'].includes(tag))return false;
+    if(el.type==='button'||el.type==='submit'||el.type==='file')return false;
+    const id=el.id;
+    return /^(bac_|haf_|mur_|tug_|tgl_|inputTarget|massal)/.test(id) || /_(bac_stat|haf_stat|mur_stat|bac_cat_type|haf_cat_type|mur_cat_type|bac_cat_desc|haf_cat_desc|mur_cat_desc|tug_detail|tug_cat)$/.test(id);
+  };
+  const capture=el=>{
+    if(!isFormField(el))return;
+    snap[el.id]={value:String(el.value??''),checked:!!el.checked,type:String(el.type||''),updatedAt:Date.now()};
+    schedule();
+  };
+  const restore=()=>{
+    let changed=false;
+    Object.keys(snap).forEach(id=>{
+      const el=document.getElementById(id), v=snap[id];
+      if(!el||!v)return;
+      if(el.type==='checkbox'||el.type==='radio') el.checked=!!v.checked;
+      else if(String(el.value??'')!==String(v.value??'')) { el.value=String(v.value??''); changed=true; }
+      try{el.dispatchEvent(new Event('change',{bubbles:false}));}catch(_){}
+    });
+    if(changed) setTimeout(save,20);
+    try{window.refreshInlineTargets?.();}catch(_){}
+  };
+  const captureAll=()=>{document.querySelectorAll('input,select,textarea').forEach(capture);};
+  document.addEventListener('input',e=>capture(e.target),true);
+  document.addEventListener('change',e=>capture(e.target),true);
+  window.rqPersistAllInputFields=()=>{captureAll();save();};
+  window.rqRestoreAllInputFields=()=>setTimeout(restore,30);
+
+  // Simpan nilai terakhir sebelum setiap render ulang kartu.
+  const oldRender=window.renderSantriCardsAndTable;
+  if(typeof oldRender==='function'){
+    window.renderSantriCardsAndTable=function(){
+      try{captureAll();save();}catch(_){}
+      const r=oldRender.apply(this,arguments);
+      setTimeout(restore,60);
+      setTimeout(()=>{try{window.refreshInlineTargets?.();restore();}catch(_){}},180);
+      return r;
+    };
+  }
+
+  // Setelah target dihapus manual, hapus hanya snapshot kolom target tersebut.
+  const oldDeleteTarget=window.deleteInputTarget;
+  if(typeof oldDeleteTarget==='function'){
+    window.deleteInputTarget=function(type,name,slot='legacy'){
+      const p=type==='hafalan'?'Hafalan':'Murojaah';
+      const suf=type==='hafalan'?(slot==='jangkaPendek'?'JangkaPendek':slot==='akanDatang'?'AkanDatang':''):'';
+      const base=`inputTarget${p}${suf}`;
+      [
+        `${base}Juz_${name}`,`${base}Surat_${name}`,`${base}Ayat_${name}`,
+        `${base}Mulai_${name}`,`${base}Selesai_${name}`
+      ].forEach(id=>{delete snap[id]});
+      if(type==='hafalan'){
+        delete snap[`${base}SuratSearch_${name}`];
+      }
+      save();
+      return oldDeleteTarget.apply(this,arguments);
+    };
+  }
+
+  // Target yang baru disimpan langsung dicatat sebagai nilai form terakhir.
+  const oldSaveTarget=window.saveInputTarget;
+  if(typeof oldSaveTarget==='function'){
+    window.saveInputTarget=function(){
+      const r=oldSaveTarget.apply(this,arguments);
+      setTimeout(()=>{try{captureAll();save();restore();}catch(_){}},70);
+      return r;
+    };
+  }
+
+  // Boot dan setiap perpindahan menu tetap mengembalikan nilai terakhir.
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(restore,220));
+  else setTimeout(restore,220);
+  setTimeout(restore,700);
+})();
+</script>
+
+<script id="rq-progress-percent-fix-2026-10-07">
+/* ============================================================
+   PROGRESS PERCENT FINAL FIX 2026-10-07
+   Progress = jumlah ayat unik yang benar-benar sudah diinput / target.
+   Tidak lagi mensyaratkan ayat harus dimulai dari ayat 1 untuk dihitung.
+   Target tetap menjadi batas maksimum.
+   ============================================================ */
+(function(){
+  const eng=window.rqTargetEngine;
+  if(!eng||typeof eng.calc!=='function')return;
+  const oldCalc=eng.calc;
+  const norm=v=>String(v??'').trim().toLowerCase().normalize('NFKC').replace(/[‘’‚‛′`´]/g,"'").replace(/[‐‑‒–—]/g,'-').replace(/^[0-9]+\.\s*/,'').replace(/\s*\(\s*[0-9]+\s*ayat\s*\)$/i,'').replace(/\s+/g,' ');
+  const same=(a,b)=>{const x=norm(a),y=norm(b);return !!x&&!!y&&(x===y||x.includes(y)||y.includes(x));};
+  const targetItems=t=>Array.isArray(t?.items)&&t.items.length?t.items:(t?.surat&&Number(t?.ayat)>0?[{surat:t.surat,ayat:Number(t.ayat)||0,juz:t.juz||''}]:[]);
+  const addRange=(set,a,b)=>{a=Number(a);b=Number(b);if(!Number.isFinite(a)||a<1)return;if(!Number.isFinite(b)||b<a)b=a;for(let n=Math.floor(a);n<=Math.floor(b);n++)set.add(n);};
+  const fallback=(row,set,surat)=>{
+    const d=String(row?.detail||'');
+    if(surat&&!norm(d).includes(norm(surat)))return;
+    const re=/(?:ayat|ay)\s*[:.]?\s*(\d+)(?:\s*[-–]\s*(\d+))?/gi; let m;
+    while((m=re.exec(d))){addRange(set,m[1],m[2]||m[1]);}
+  };
+  eng.calc=function(type,name,t){
+    const q=oldCalc.apply(this,arguments)||{};
+    try{
+      const items=targetItems(t); if(!items.length)return q;
+      const rows=Array.isArray(q.rows)?q.rows:[];
+      let totalTarget=0,totalReal=0,lastAyat=0;
+      const itemProgress=items.map(item=>{
+        const target=Math.max(0,Number(item?.ayat)||0); totalTarget+=target;
+        const set=new Set(), targetSurat=item?.surat;
+        rows.forEach(row=>{
+          const slots=Array.isArray(row?.slots)?row.slots.filter(x=>x&&x.item&&x.item!=='-'):[];
+          if(slots.length){
+            slots.forEach(sl=>{if(same(sl.item,targetSurat))addRange(set,sl.start,sl.end);});
+          }else fallback(row,set,targetSurat);
+        });
+        for(const n of [...set])if(n>target)set.delete(n);
+        const real=Math.min(target,set.size), pct=target?Math.min(100,Math.round(real/target*100)):0;
+        totalReal+=real; if(real>lastAyat)lastAyat=real;
+        return {surat:item?.surat,ayatTarget:target,ayatReal:real,pct,lastAyat:real,juz:item?.juz||''};
+      });
+      const pct=totalTarget?Math.min(100,Math.round(totalReal/totalTarget*100)):0;
+      q.ayatTarget=totalTarget;q.ayatReal=totalReal;q.ayatCount=totalReal;q.ayatPct=pct;q.pct=pct;q.lastAyat=lastAyat;q.itemProgress=itemProgress;
+      return q;
+    }catch(_){return q;}
+  };
+  // Segarkan semua tampilan progres setelah engine diperbaiki.
+  setTimeout(()=>{try{window.refreshInlineTargets?.();window.generateWaReport?.();window.generateClassReport?.();window.renderTargetReport?.();}catch(_){}},120);
+})();
+</script>
+

@@ -11093,10 +11093,33 @@ html.dark #rqSafetyBackupBox #rqSafetyBackupLocation b{color:#ecfdf5 !important}
         localStorage.removeItem(key);
       }
 
+      // Snapshot Undo menyimpan salinan lengkap localStorage sebelum perubahan.
+      // Setelah FULL RIWAYAT dihapus, snapshot lama tidak boleh tetap menyimpan
+      // salinan riwayat tersebut karena akan membuat penyimpanan tetap besar.
+      // Hanya snapshot yang dihapus; fungsi Undo/Pemulihan lainnya tetap ada.
+      let deletedSnapshotCount=0;
+      let deletedSnapshotBytes=0;
+      try{
+        const rawSnapshot=localStorage.getItem('rq_undo_snapshots_v1');
+        if(rawSnapshot){
+          deletedSnapshotCount=Array.isArray(safeJson(rawSnapshot,[]))?safeJson(rawSnapshot,[]).length:0;
+          deletedSnapshotBytes=rawSnapshot.length;
+        }
+        localStorage.removeItem('rq_undo_snapshots_v1');
+      }catch(_){ }
+
+      byKey.rq_undo_snapshots_v1={
+        deleted:deletedSnapshotCount,
+        approxCharsFreed:deletedSnapshotBytes
+      };
+
       // Form Input TIDAK disentuh.
       // Ini juga memastikan Live WA memakai data yang baru saja dipertahankan.
       try{ window.persistFormCache?.(true); }catch(_){}
       const summary=saveSummary(total,byKey);
+      summary.undoSnapshotsDeleted=deletedSnapshotCount;
+      summary.approxSnapshotCharsFreed=deletedSnapshotBytes;
+      try{localStorage.setItem(SUMMARY_KEY,JSON.stringify(summary));}catch(_){}
       renderSummary();
 
       try{ window.hydrateInputFormsFromHistory?.(true); }catch(_){}
@@ -11106,7 +11129,8 @@ html.dark #rqSafetyBackupBox #rqSafetyBackupLocation b{color:#ecfdf5 !important}
       try{ window.renderLaporanSantriPekan?.(); }catch(_){}
 
       if(typeof window.showToast==='function'){
-        window.showToast(`Riwayat berhasil dibersihkan. Jumlah dihapus: ${summary.lastDeleted}`, 'success');
+        const ruang=deletedSnapshotBytes>0 ? ` Snapshot Undo dibersihkan (${deletedSnapshotCount} snapshot).` : '';
+        window.showToast(`Riwayat berhasil dibersihkan. Jumlah dihapus: ${summary.lastDeleted}.${ruang}`, 'success');
       }else{
         alert(`Riwayat berhasil dibersihkan. Jumlah dihapus: ${summary.lastDeleted}`);
       }

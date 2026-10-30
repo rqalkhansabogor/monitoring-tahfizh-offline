@@ -2393,7 +2393,7 @@
                             <label class="block text-xs font-black text-slate-700 dark:text-slate-300 mb-1.5">Nama Surat:</label>
 
                             <select id="${category}_surah_${slot}_${santriName}"
-                                onchange="window.cacheFormInput(this, '${cacheKeySurah}'); window.syncExistingSurahSelect('${category}', ${slot}, '${santriName.replace(/'/g, "\'")}');"
+                                onchange="window.cacheFormInput(this, '${cacheKeySurah}'); window.syncExistingSurahSelect('${category}', ${slot}, '${santriName.replace(/'/g, "\\'")}');"
                                 class="w-full p-4 bg-white dark:bg-white text-black border-2 border-slate-300 dark:border-slate-700 rounded-2xl font-black text-sm min-h-[56px]"
                                 disabled>
                                 <option value="">-- Pilih Surat --</option>
@@ -2406,9 +2406,9 @@
                                     value="${window.surahSearchEscape(defaultSurahVal)}"
                                     placeholder="Ketik/cari nama surat..."
                                     autocomplete="off"
-                                    onfocus="window.renderSurahAutocomplete('${category}', ${slot}, '${santriName.replace(/'/g, "\'")}')"
-                                    oninput="window.renderSurahAutocomplete('${category}', ${slot}, '${santriName.replace(/'/g, "\'")}'); window.syncSurahSearchInput('${category}', ${slot}, '${santriName.replace(/'/g, "\'")}', this.value); if('${category}'==='mur') window.refreshLiveMurojaahReport?.()"
-                                    onblur="setTimeout(() => window.validateSurahSearchInput('${category}', ${slot}, '${santriName.replace(/'/g, "\'")}'), 150)"
+                                    onfocus="window.renderSurahAutocomplete('${category}', ${slot}, '${santriName.replace(/'/g, "\\'")}')"
+                                    oninput="window.renderSurahAutocomplete('${category}', ${slot}, '${santriName.replace(/'/g, "\\'")}'); window.syncSurahSearchInput('${category}', ${slot}, '${santriName.replace(/'/g, "\\'")}', this.value); if('${category}'==='mur') window.refreshLiveMurojaahReport?.()"
+                                    onblur="setTimeout(() => window.validateSurahSearchInput('${category}', ${slot}, '${santriName.replace(/'/g, "\\'")}'), 150)"
                                     class="w-full p-4 bg-white dark:bg-white text-black placeholder-slate-400 border-2 border-slate-300 dark:border-slate-700 rounded-2xl font-black text-sm min-h-[56px]">
                                 <div id="${category}_surah_search_${slot}_${santriName}_dropdown"
                                     class="hidden absolute left-0 right-0 top-full mt-1 z-[80] max-h-64 overflow-y-auto bg-white text-black border-2 border-slate-200 rounded-xl shadow-xl custom-scrollbar">
@@ -2431,11 +2431,17 @@
 
                         <div class="grid grid-cols-2 gap-3">
                             <div>
-                                <label id="lbl_start_${category}_${slot}_${santriName}" class="block text-xs font-black text-slate-700 dark:text-slate-300 mb-1">${cachedMode === 'iqro' ? 'Halaman Mulai:' : 'Ayat Mulai:'}</label>
+                                <div class="flex items-center justify-between gap-1 mb-1">
+                                    <label id="lbl_start_${category}_${slot}_${santriName}" class="block text-xs font-black text-slate-700 dark:text-slate-300">${cachedMode === 'iqro' ? 'Halaman Mulai:' : 'Ayat Mulai:'}</label>
+                                    ${category === 'bac' ? `<button type="button" id="btn_clear_start_bac_${slot}_${santriName}" onclick="window.clearBacaanRangeField('${santriName.replace(/'/g, "\\'")}', ${slot}, 'start', '${cacheKeyStart}')" class="px-2 py-1 rounded-lg text-[10px] font-black text-rose-600 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900" aria-label="Hapus Ayat Mulai">Hapus</button>` : ''}
+                                </div>
                                 <input type="number" id="${category}_start_${slot}_${santriName}" oninput="window.cacheFormInput(this, '${cacheKeyStart}'); if('${category}'==='mur') window.refreshLiveMurojaahReport?.()" value="${defaultStartVal}" placeholder="Mulai" class="w-full p-4 bg-transparent border-2 border-slate-300 dark:border-slate-700 rounded-2xl font-black text-sm min-h-[56px]">
                             </div>
                             <div>
-                                <label id="lbl_end_${category}_${slot}_${santriName}" class="block text-xs font-black text-slate-700 dark:text-slate-300 mb-1">${cachedMode === 'iqro' ? 'Halaman Sampai:' : 'Ayat Sampai:'}</label>
+                                <div class="flex items-center justify-between gap-1 mb-1">
+                                    <label id="lbl_end_${category}_${slot}_${santriName}" class="block text-xs font-black text-slate-700 dark:text-slate-300">${cachedMode === 'iqro' ? 'Halaman Sampai:' : 'Ayat Sampai:'}</label>
+                                    ${category === 'bac' ? `<button type="button" id="btn_clear_end_bac_${slot}_${santriName}" onclick="window.clearBacaanRangeField('${santriName.replace(/'/g, "\\'")}', ${slot}, 'end', '${cacheKeyEnd}')" class="px-2 py-1 rounded-lg text-[10px] font-black text-rose-600 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900" aria-label="Hapus Ayat Sampai">Hapus</button>` : ''}
+                                </div>
                                 <input type="number" id="${category}_end_${slot}_${santriName}" oninput="window.cacheFormInput(this, '${cacheKeyEnd}'); if('${category}'==='mur') window.refreshLiveMurojaahReport?.()" value="${defaultEndVal}" placeholder="Sampai" class="w-full p-4 bg-transparent border-2 border-slate-300 dark:border-slate-700 rounded-2xl font-black text-sm min-h-[56px]">
                             </div>
                         </div>
@@ -2445,7 +2451,7 @@
                                     id="btn_continue_last_bacaan_${santriName}"
                                     onclick="window.continueBacaanFromLastAyat('${santriName.replace(/'/g, "\\'")}', ${slot}, '${cacheKeyStart}', '${cacheKeyEnd}')"
                                     class="px-3 py-2 rounded-xl border border-emerald-500/40 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 text-[11px] sm:text-xs font-black hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition">
-                                    <i class="fa-solid fa-arrow-turn-down mr-1"></i> Lanjutkan dari Ayat Terakhir
+                                    <i class="fa-solid fa-arrow-turn-down mr-1"></i> Lanjutkan dari Posisi Terakhir
                                 </button>
                             </div>
                         ` : ''}
@@ -3109,17 +3115,23 @@
 
         // Lanjutkan bacaan dari ayat terakhir pada riwayat santri dan surat yang sama.
         // Hanya mengisi form; tidak mengubah atau menyimpan riwayat.
+        // Lanjutkan posisi bacaan Al-Qur'an atau Iqro dari riwayat santri yang sama.
+        // Fungsi hanya mengisi form dan cache; tidak menyimpan riwayat.
         window.continueBacaanFromLastAyat = function(santriName, slot = 1, startCacheKey = '', endCacheKey = '') {
-            const mode = window.itemSourceMode?.[`${santriName}_bac_${slot}`] || 'quran';
-            if (mode !== 'quran') {
-                window.showToast?.('Fitur lanjut ayat hanya tersedia untuk mode Al-Qur’an.', 'error');
-                return;
-            }
-            const surah = String(document.getElementById(`bac_surah_${slot}_${santriName}`)?.value || '').trim();
+            const key = `${santriName}_bac_${slot}`;
+            const mode = String(window.itemSourceMode?.[key] || 'quran').toLowerCase();
             const startInput = document.getElementById(`bac_start_${slot}_${santriName}`);
             const endInput = document.getElementById(`bac_end_${slot}_${santriName}`);
-            if (!surah || !startInput || !endInput) {
-                window.showToast?.('Pilih nama surat terlebih dahulu.', 'error');
+            if (!startInput || !endInput) {
+                window.showToast?.('Kolom posisi mulai dan sampai tidak ditemukan.', 'error');
+                return;
+            }
+            const norm = value => String(value || '').trim().toLocaleLowerCase('id').replace(/\s+/g, ' ');
+            const selectedItem = mode === 'iqro'
+                ? String(document.getElementById(`bac_iqro_${slot}_${santriName}`)?.value || '').trim()
+                : String(document.getElementById(`bac_surah_${slot}_${santriName}`)?.value || '').trim();
+            if (!selectedItem) {
+                window.showToast?.(mode === 'iqro' ? 'Pilih jilid Iqro terlebih dahulu.' : 'Pilih nama surat terlebih dahulu.', 'error');
                 return;
             }
             let history = [];
@@ -3127,52 +3139,71 @@
                 const parsed = JSON.parse(localStorage.getItem('rq_history_bacaan') || '[]');
                 history = Array.isArray(parsed) ? parsed : [];
             } catch (_) {}
-            const norm = value => String(value || '').trim().toLocaleLowerCase('id');
-            const matches = history.filter(row => norm(row?.name) === norm(santriName))
+            const matches = history.filter(row => norm(row?.name) === norm(santriName) && !row?.rqResetInactive)
                 .map((row, index) => {
                     const raw = Number(row?.rawTime);
                     const time = Number.isFinite(raw) && raw > 0 ? raw : (Date.parse(row?.timestamp || row?.tanggal || '') || 0);
                     return { row, time, index };
                 })
                 .sort((a, b) => b.time - a.time || a.index - b.index);
-            let lastAyat = 0;
+            let lastPosition = 0;
             for (const entry of matches) {
                 const row = entry.row;
-                // Utamakan data slot terstruktur bila tersedia pada riwayat.
                 const slots = Array.isArray(row?.slots) ? row.slots : (Array.isArray(row?.structuredSlots) ? row.structuredSlots : []);
-                const structured = slots.find(item => norm(item?.item) === norm(surah) && (item?.mode || 'quran') !== 'iqro');
+                const structured = slots.find(item => norm(item?.item) === norm(selectedItem) &&
+                    (mode === 'iqro' ? (String(item?.mode || '').toLowerCase() === 'iqro' || /^iqro\s*\d+$/i.test(String(item?.item || ''))) : String(item?.mode || 'quran').toLowerCase() !== 'iqro'));
                 if (structured) {
                     const end = Number(structured.end);
-                    const start = Number(structured.start);
-                    lastAyat = Number.isFinite(end) && end > 0 ? end : (Number.isFinite(start) && start > 0 ? start : 0);
-                    if (lastAyat) break;
+                    const begin = Number(structured.start);
+                    lastPosition = Number.isFinite(end) && end > 0 ? end : (Number.isFinite(begin) && begin > 0 ? begin : 0);
+                    if (lastPosition) break;
                 }
                 const detail = String(row?.detail || '');
-                const escaped = surah.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                const re = new RegExp(`(?:^|,\\s*)${escaped}\\s+(\\d+)(?:\\s*[-–]\\s*(\\d+))?(?=\\s*(?:\\(|,|$))`, 'i');
-                const found = detail.match(re);
+                let found = null;
+                if (mode === 'iqro') {
+                    const escaped = selectedItem.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                    const re = new RegExp(`(?:^|[,•]\\s*)${escaped}\\s+Hlm\\s+(\\d+)(?:\\s*[-–]\\s*(\\d+))?`, 'i');
+                    found = detail.match(re);
+                } else {
+                    const escaped = selectedItem.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                    const re = new RegExp(`(?:^|[,•]\\s*)${escaped}\\s+(\\d+)(?:\\s*[-–]\\s*(\\d+))?(?=\\s*(?:\\(|,|$))`, 'i');
+                    found = detail.match(re);
+                }
                 if (found) {
-                    lastAyat = Number(found[2] || found[1]) || 0;
-                    if (lastAyat) break;
+                    lastPosition = Number(found[2] || found[1]) || 0;
+                    if (lastPosition) break;
                 }
             }
-            if (!lastAyat) {
-                window.showToast?.(`Belum ditemukan riwayat bacaan ${surah} untuk ${santriName}.`, 'error');
+            if (!lastPosition) {
+                window.showToast?.(`Belum ditemukan riwayat ${mode === 'iqro' ? 'bacaan ' + selectedItem : 'surat ' + selectedItem} untuk ${santriName}.`, 'error');
                 return;
             }
-            const surahInfo = (window.surahList || []).find(item => norm(item?.name) === norm(surah));
-            if (surahInfo && lastAyat >= Number(surahInfo.ayat)) {
-                window.showToast?.(`${surah} sudah mencapai ayat terakhir (${surahInfo.ayat}).`, 'error');
-                return;
+            if (mode !== 'iqro') {
+                const surahInfo = (window.surahList || []).find(item => norm(item?.name) === norm(selectedItem));
+                if (surahInfo && lastPosition >= Number(surahInfo.ayat)) {
+                    window.showToast?.(`${selectedItem} sudah mencapai ayat terakhir (${surahInfo.ayat}).`, 'error');
+                    return;
+                }
             }
-            const nextAyat = lastAyat + 1;
-            startInput.value = String(nextAyat);
+            const nextPosition = lastPosition + 1;
+            startInput.value = String(nextPosition);
             endInput.value = '';
-            if (startCacheKey) window.cacheFormInput?.({ value: String(nextAyat) }, startCacheKey);
+            if (startCacheKey) window.cacheFormInput?.({ value: String(nextPosition) }, startCacheKey);
             if (endCacheKey) window.cacheFormInput?.({ value: '' }, endCacheKey);
             startInput.dispatchEvent(new Event('input', { bubbles: true }));
             endInput.dispatchEvent(new Event('input', { bubbles: true }));
-            window.showToast?.(`Ayat Mulai diisi ${nextAyat}. Silakan isi Ayat Sampai.`, 'success');
+            window.showToast?.(`${mode === 'iqro' ? 'Halaman' : 'Ayat'} Mulai diisi ${nextPosition}. Silakan isi posisi sampai.`, 'success');
+        };
+
+        // Tombol hapus hanya mengosongkan satu kolom bacaan dan cache pasangannya.
+        window.clearBacaanRangeField = function(santriName, slot = 1, field = 'start', cacheKey = '') {
+            if (field !== 'start' && field !== 'end') return;
+            const input = document.getElementById(`bac_${field}_${slot}_${santriName}`);
+            if (!input) return;
+            input.value = '';
+            if (cacheKey) window.cacheFormInput?.({ value: '' }, cacheKey);
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            window.showToast?.(field === 'start' ? 'Kolom posisi mulai dikosongkan.' : 'Kolom posisi sampai dikosongkan.', 'success');
         };
 
         window.extractSlotEntries = function(category, santriName) {

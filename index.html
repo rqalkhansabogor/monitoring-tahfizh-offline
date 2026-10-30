@@ -7934,39 +7934,6 @@
 </section>
 
 <section id="section-export" class="hidden space-y-4">
-                <!-- PANEL TAMBAHAN: MIGRASI AWAL LOCAL STORAGE KE GOOGLE SPREADSHEET -->
-                <div id="rqInitialMigrationPanel" class="p-4 sm:p-5 rounded-2xl border-2 border-violet-300 dark:border-violet-800 bg-violet-50/70 dark:bg-violet-950/20 space-y-4">
-                    <div class="flex items-center gap-3">
-                        <span class="w-10 h-10 rounded-xl bg-violet-600 text-white flex items-center justify-center"><i class="fa-solid fa-database"></i></span>
-                        <div class="min-w-0">
-                            <h3 class="font-black text-base sm:text-lg text-violet-900 dark:text-violet-200">Migrasi Database Local Storage</h3>
-                            <p class="text-[11px] sm:text-xs font-bold text-slate-600 dark:text-slate-300">Salin data perangkat ke Google Spreadsheet tanpa menghapus data lokal.</p>
-                        </div>
-                    </div>
-                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                        <div class="p-3 rounded-xl bg-white dark:bg-slate-900 border border-violet-100 dark:border-violet-900"><div class="text-[10px] font-bold text-slate-500">Key rq_ ditemukan</div><div id="rqMigKeyCount" class="text-xl font-black text-violet-700 dark:text-violet-300">—</div></div>
-                        <div class="p-3 rounded-xl bg-white dark:bg-slate-900 border border-violet-100 dark:border-violet-900"><div class="text-[10px] font-bold text-slate-500">Data santri runtime</div><div id="rqMigSantriCount" class="text-xl font-black text-violet-700 dark:text-violet-300">—</div></div>
-                        <div class="p-3 rounded-xl bg-white dark:bg-slate-900 border border-violet-100 dark:border-violet-900"><div class="text-[10px] font-bold text-slate-500">Ukuran payload</div><div id="rqMigPayloadSize" class="text-xl font-black text-violet-700 dark:text-violet-300">—</div></div>
-                        <div class="p-3 rounded-xl bg-white dark:bg-slate-900 border border-violet-100 dark:border-violet-900"><div class="text-[10px] font-bold text-slate-500">Status API</div><div id="rqMigApiStatus" class="text-sm font-black text-amber-600">Belum diuji</div></div>
-                    </div>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <label class="block"><span class="text-[11px] font-black text-slate-700 dark:text-slate-200">Token API</span><input id="rqMigApiToken" type="password" autocomplete="off" spellcheck="false" placeholder="Masukkan token Apps Script" class="mt-1 w-full min-h-[44px] px-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm"></label>
-                        <label class="block"><span class="text-[11px] font-black text-slate-700 dark:text-slate-200">Nama operator (opsional)</span><input id="rqMigOperator" type="text" autocomplete="off" placeholder="Nama operator" class="mt-1 w-full min-h-[44px] px-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm"></label>
-                    </div>
-                    <div id="rqMigPreflightNotice" class="p-3 rounded-xl bg-white/80 dark:bg-slate-900/70 border border-slate-200 dark:border-slate-700 text-[11px] font-bold text-slate-600 dark:text-slate-300">Memeriksa data lokal…</div>
-                    <div class="flex flex-col sm:flex-row gap-2">
-                        <button type="button" id="rqMigRefreshBtn" class="flex-1 min-h-[46px] px-4 py-3 rounded-xl bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-100 font-black text-xs sm:text-sm"><i class="fa-solid fa-rotate mr-1"></i> Periksa Data Lokal</button>
-                        <button type="button" id="rqMigPingBtn" class="flex-1 min-h-[46px] px-4 py-3 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-black text-xs sm:text-sm"><i class="fa-solid fa-plug mr-1"></i> Tes Koneksi API</button>
-                        <button type="button" id="rqMigStartBtn" disabled class="flex-1 min-h-[46px] px-4 py-3 rounded-xl bg-violet-600 text-white font-black text-xs sm:text-sm disabled:opacity-40 disabled:cursor-not-allowed"><i class="fa-solid fa-cloud-arrow-up mr-1"></i> Mulai Migrasi Awal</button>
-                    </div>
-                    <div class="space-y-2">
-                        <div class="flex justify-between text-[10px] font-black text-slate-600 dark:text-slate-300"><span id="rqMigProgressLabel">Belum ada proses migrasi</span><span id="rqMigProgressPct">0%</span></div>
-                        <div class="h-2.5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden"><div id="rqMigProgressBar" class="h-full w-0 bg-violet-600 transition-all"></div></div>
-                    </div>
-                    <pre id="rqMigResult" class="hidden whitespace-pre-wrap break-words p-3 rounded-xl bg-slate-950 text-emerald-300 text-[11px] leading-relaxed max-h-72 overflow-auto"></pre>
-                    <p class="text-[10px] leading-relaxed text-slate-500 dark:text-slate-400">Catatan: migrasi hanya berjalan setelah tombol ditekan. Data lokal tidak dihapus atau ditimpa. Data dikirim bertahap dalam paket kecil. Data lokal tidak dihapus, tidak ditimpa, dan migrasi hanya berjalan setelah tombol ditekan.</p>
-                </div>
-
             <div class="bg-white dark:bg-slate-800 p-4 sm:p-5 rounded-2xl shadow-sm border space-y-4">
                 <div class="flex items-center justify-between flex-wrap gap-3">
                     <h3 class="font-black text-base sm:text-lg text-emerald-800 dark:text-emerald-300">Cloud & Web Terkait</h3>
@@ -11289,73 +11256,6 @@ html.dark #rqSafetyBackupBox #rqSafetyBackupLocation b{color:#ecfdf5 !important}
     mount();
   }
 })();
-</script>
-
-<script id="rq-migration-transport-v2">
-(function(){
- 'use strict';
- const API_URL='https://script.google.com/macros/s/AKfycbySqkjnClwMTO6BY_cFH0KT5Y2Hkqid0FQd6waA5f6DiO3mitwox_u4wdMyEZeC3kMTNw/exec';
- const BATCH_TARGET=120*1024; // target JSON bytes per form post
- const $=id=>document.getElementById(id);
- let busy=false, frame=null, frameReady=false, pending=null;
- function ensureTransport(){
-   if(frame) return;
-   frame=document.createElement('iframe'); frame.name='rqMigrationResponseFrame'; frame.id='rqMigrationResponseFrame';
-   frame.style.display='none'; frame.setAttribute('aria-hidden','true'); document.body.appendChild(frame);
-   window.addEventListener('message',function(ev){
-     if(!frame || ev.source!==frame.contentWindow || !ev.data || ev.data.type!=='RQ_MIGRATION_RESPONSE') return;
-     if(!pending || ev.data.requestId!==pending.id) return;
-     const p=pending; pending=null; clearTimeout(p.timer);
-     if(ev.data.ok) p.resolve(ev.data.data); else p.reject(new Error(ev.data.error||'Server mengembalikan kesalahan.'));
-   });
- }
- function postForm(payload,timeoutMs=90000){
-   ensureTransport();
-   return new Promise((resolve,reject)=>{
-     if(pending) return reject(new Error('Masih ada request yang berjalan.'));
-     const id=(crypto&&crypto.randomUUID)?crypto.randomUUID():('rq-'+Date.now()+'-'+Math.random().toString(36).slice(2));
-     payload.request_id=id;
-     const form=document.createElement('form'); form.method='POST'; form.action=API_URL; form.target=frame.name; form.acceptCharset='UTF-8'; form.enctype='application/x-www-form-urlencoded'; form.style.display='none';
-     const input=document.createElement('input'); input.type='hidden'; input.name='payload'; input.value=JSON.stringify(payload); form.appendChild(input);
-     const req={id,resolve,reject,timer:setTimeout(()=>{if(pending&&pending.id===id){pending=null;reject(new Error('Waktu tunggu habis. Periksa SyncLog sebelum mengirim ulang.'));}},timeoutMs)};
-     pending=req; document.body.appendChild(form);
-     try{form.submit();}catch(e){clearTimeout(req.timer);pending=null;reject(e);} 
-     setTimeout(()=>form.remove(),1000);
-   });
- }
- function deviceId(){
-   const k='rq_migration_device_id_v1'; let id='';
-   try{id=sessionStorage.getItem(k)||'';}catch(_){}
-   if(!id){id=(crypto&&crypto.randomUUID)?crypto.randomUUID():('device-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2));try{sessionStorage.setItem(k,id);}catch(_){} }
-   return id;
- }
- function snapshot(){
-   const localStorageData={};
-   for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&k.startsWith('rq_')){const v=localStorage.getItem(k);if(typeof v!=='string')throw new Error('Nilai bukan string: '+k);localStorageData[k]=v;}}
-   const santri=Array.isArray(window.santriList)?window.santriList:[];
-   return {localStorage:localStorageData,santriList:santri};
- }
- const enc=s=>new TextEncoder().encode(s).length;
- function fmt(n){return n<1024?n+' B':n<1048576?(n/1024).toFixed(1)+' KB':(n/1048576).toFixed(2)+' MB';}
- async function hashId(obj){const raw=JSON.stringify(obj);if(!crypto||!crypto.subtle)throw new Error('Browser tidak mendukung SHA-256. Buka website melalui HTTPS.');const h=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(raw));return 'MIG-'+Array.from(new Uint8Array(h)).map(x=>x.toString(16).padStart(2,'0')).join('');}
- function status(t,k){const e=$('rqMigApiStatus');if(!e)return;e.textContent=t;e.className='text-sm font-black '+(k==='ok'?'text-emerald-600':k==='bad'?'text-rose-600':'text-amber-600');}
- function progress(t,n){$('rqMigProgressLabel').textContent=t;$('rqMigProgressPct').textContent=n+'%';$('rqMigProgressBar').style.width=n+'%';}
- function notice(t,ok){const e=$('rqMigPreflightNotice');e.textContent=t;e.className='p-3 rounded-xl border text-[11px] font-bold '+(ok?'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200':'bg-rose-50 dark:bg-rose-950/30 border-rose-300 dark:border-rose-800 text-rose-800 dark:text-rose-200');}
- function inspect(){const s=snapshot(),keys=Object.keys(s.localStorage).sort(),payload={action:'migrateInitial',localStorage:s.localStorage,santriList:s.santriList};const size=enc(JSON.stringify(payload));$('rqMigKeyCount').textContent=keys.length;$('rqMigSantriCount').textContent=s.santriList.length;$('rqMigPayloadSize').textContent=fmt(size);const ok=keys.length>0;notice(ok?'Pemeriksaan berhasil. '+keys.length+' key rq_ siap diproses dalam batch kecil. Data lokal hanya dibaca.':'Tidak ditemukan key rq_ pada Local Storage.',ok);$('rqMigStartBtn').disabled=!ok||busy;return {s,keys,size,ok};}
- async function ping(){const token=$('rqMigApiToken').value.trim();if(!token){alert('Masukkan token API terlebih dahulu.');return;}const b=$('rqMigPingBtn');b.disabled=true;status('Menghubungkan…','wait');try{const r=await postForm({action:'ping',token});if(!r||r.ok!==true)throw new Error(r&&r.error||'Respons ping tidak valid.');status('Terhubung','ok');notice('POST ping berhasil. Server dapat dibaca oleh website. '+(r.time||''),true);}catch(e){status('Gagal','bad');notice('POST ping gagal: '+(e.message||e),false);}finally{b.disabled=false;}}
- function makeBatches(keys,local,santri){if(JSON.stringify(santri).length>35000)throw new Error('Data santri runtime melebihi batas aman satu sel. Perlu pemecahan khusus sebelum migrasi.');const batches=[];let current={},currentSize=0;for(const k of keys){const v=local[k];const itemSize=enc(JSON.stringify({[k]:v}));if(v.length>35000)throw new Error('Nilai key '+k+' terlalu besar untuk satu sel Spreadsheet. Perlu rancangan penyimpanan khusus sebelum dikirim.');if(Object.keys(current).length&&currentSize+itemSize>BATCH_TARGET){batches.push(current);current={};currentSize=0;}current[k]=v;currentSize+=itemSize;}if(Object.keys(current).length)batches.push(current);if(!batches.length)batches.push({});return batches;}
- async function migrate(){if(busy)return;let info;try{info=inspect();}catch(e){notice('Gagal membaca data lokal: '+e.message,false);return;}if(!info.ok)return;const token=$('rqMigApiToken').value.trim();if(!token){alert('Masukkan token API.');return;}if($('rqMigApiStatus').textContent!=='Terhubung'){alert('Tes koneksi POST harus berhasil terlebih dahulu.');return;}if(!confirm('MIGRASI AWAL\n\n'+info.keys.length+' key Local Storage dan '+info.s.santriList.length+' data santri runtime akan disalin ke Spreadsheet dalam beberapa batch. Data lokal tidak dihapus atau diubah. Lanjutkan?'))return;
- busy=true;const buttons=['rqMigStartBtn','rqMigPingBtn','rqMigRefreshBtn'];buttons.forEach(id=>$(id).disabled=true);$('rqMigResult').classList.add('hidden');
- try{const migrationId=await hashId(info.s);const batches=makeBatches(info.keys,info.s.localStorage,info.s.santriList);let totals={keys_received:0,keys_added:0,keys_unchanged:0,conflicts:0,conflict_keys:[]};for(let i=0;i<batches.length;i++){const payload={action:'migrateInitial',token,migration_id:migrationId,device_id:deviceId(),device_name:(navigator.platform||'Browser')+' / '+(/Mobi/i.test(navigator.userAgent)?'HP':'Laptop'),device_type:/Mobi/i.test(navigator.userAgent)?'HP':'Laptop',operator:$('rqMigOperator').value.trim(),exported_at:new Date().toISOString(),app:'Monitoring Tahfizh RQ Al-Khansa',format:'rq-al-khansa-web-sync',version:1,localStorage:batches[i],santriList:i===0?info.s.santriList:[]};progress('Mengirim batch '+(i+1)+' dari '+batches.length+'…',Math.round(i/batches.length*100));const r=await postForm(payload,120000);if(!r||r.ok!==true)throw new Error(r&&r.error||'Respons batch tidak valid.');const x=r.result||{};['keys_received','keys_added','keys_unchanged','conflicts'].forEach(k=>totals[k]+=(Number(x[k])||0));totals.conflict_keys.push(...(x.conflict_keys||[]));progress('Batch '+(i+1)+' dari '+batches.length+' diterima server.',Math.round((i+1)/batches.length*100));}
- $('rqMigResult').textContent=['STATUS: SEMUA BATCH DITERIMA SERVER','Migration ID: '+migrationId,'Jumlah batch: '+batches.length,'Key diterima: '+totals.keys_received,'Key ditambahkan: '+totals.keys_added,'Key tidak berubah: '+totals.keys_unchanged,'Konflik: '+totals.conflicts,'Key konflik: '+(totals.conflict_keys.join(', ')||'-'),'Local Storage berubah: TIDAK','Catatan: periksa tab SnapshotData dan SyncLog untuk verifikasi akhir.'].join('\n');$('rqMigResult').classList.remove('hidden');progress('Semua batch mendapat respons sukses.',100);status('Terhubung','ok');
- }catch(e){progress('Proses terhenti. Data lokal tetap aman.',0);$('rqMigResult').textContent='STATUS: BELUM SELESAI\n'+(e.message||e)+'\n\nJangan langsung mengulang sebelum memeriksa SnapshotData dan SyncLog. Batch yang sudah diterima menggunakan migration ID yang sama sehingga pengiriman ulang data identik akan dilewati.';$('rqMigResult').classList.remove('hidden');status('Perlu pemeriksaan','bad');}finally{busy=false;buttons.forEach(id=>$(id).disabled=false);try{inspect();}catch(_){}}
- }
- function mount(){if(!$('rqInitialMigrationPanel')||$('rqInitialMigrationPanel').dataset.transportReady==='1')return;$('rqInitialMigrationPanel').dataset.transportReady='1';$('rqMigRefreshBtn').addEventListener('click',()=>{try{inspect();}catch(e){notice(e.message,false);}});$('rqMigPingBtn').addEventListener('click',ping);$('rqMigStartBtn').addEventListener('click',migrate);try{inspect();}catch(e){notice(e.message,false);}ensureTransport();}
- if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount,{once:true});else mount();
-})();
-</script>
-<script id="rq-migration-panel-position-v2">
-(function(){function place(){const s=document.getElementById('section-export'),p=document.getElementById('rqInitialMigrationPanel');if(!s||!p)return;const b=s.querySelector('button[onclick*="exportAllLocalDataToCsv"]');if(!b)return;let c=b.closest('.p-3\\.5')||b.parentElement; if(c&&c.parentElement===s&&p.previousElementSibling!==c)c.insertAdjacentElement('afterend',p);}if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{place();setTimeout(place,400);setTimeout(place,1200);},{once:true});else{place();setTimeout(place,400);setTimeout(place,1200);}})();
 </script>
 
 </body>

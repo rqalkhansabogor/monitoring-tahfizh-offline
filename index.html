@@ -2439,7 +2439,16 @@
                                 <input type="number" id="${category}_end_${slot}_${santriName}" oninput="window.cacheFormInput(this, '${cacheKeyEnd}'); if('${category}'==='mur') window.refreshLiveMurojaahReport?.()" value="${defaultEndVal}" placeholder="Sampai" class="w-full p-4 bg-transparent border-2 border-slate-300 dark:border-slate-700 rounded-2xl font-black text-sm min-h-[56px]">
                             </div>
                         </div>
-
+                        ${category === 'bac' && slot === 1 ? `
+                            <div class="mt-2 flex justify-end">
+                                <button type="button"
+                                    id="btn_continue_last_bacaan_${santriName}"
+                                    onclick="window.continueBacaanFromLastAyat('${santriName.replace(/'/g, "\\'")}', ${slot}, '${cacheKeyStart}', '${cacheKeyEnd}')"
+                                    class="px-3 py-2 rounded-xl border border-emerald-500/40 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 text-[11px] sm:text-xs font-black hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition">
+                                    <i class="fa-solid fa-arrow-turn-down mr-1"></i> Lanjutkan dari Ayat Terakhir
+                                </button>
+                            </div>
+                        ` : ''}
 
                     </div>
                 `;
@@ -3096,6 +3105,74 @@
                     if (state?.write) window.setInputSyncStatus(category, 'write', state.write.status, state.write.message, name, state.write.progress);
                 });
             }, 0);
+        };
+
+        // Lanjutkan bacaan dari ayat terakhir pada riwayat santri dan surat yang sama.
+        // Hanya mengisi form; tidak mengubah atau menyimpan riwayat.
+        window.continueBacaanFromLastAyat = function(santriName, slot = 1, startCacheKey = '', endCacheKey = '') {
+            const mode = window.itemSourceMode?.[`${santriName}_bac_${slot}`] || 'quran';
+            if (mode !== 'quran') {
+                window.showToast?.('Fitur lanjut ayat hanya tersedia untuk mode Al-Qur’an.', 'error');
+                return;
+            }
+            const surah = String(document.getElementById(`bac_surah_${slot}_${santriName}`)?.value || '').trim();
+            const startInput = document.getElementById(`bac_start_${slot}_${santriName}`);
+            const endInput = document.getElementById(`bac_end_${slot}_${santriName}`);
+            if (!surah || !startInput || !endInput) {
+                window.showToast?.('Pilih nama surat terlebih dahulu.', 'error');
+                return;
+            }
+            let history = [];
+            try {
+                const parsed = JSON.parse(localStorage.getItem('rq_history_bacaan') || '[]');
+                history = Array.isArray(parsed) ? parsed : [];
+            } catch (_) {}
+            const norm = value => String(value || '').trim().toLocaleLowerCase('id');
+            const matches = history.filter(row => norm(row?.name) === norm(santriName))
+                .map((row, index) => {
+                    const raw = Number(row?.rawTime);
+                    const time = Number.isFinite(raw) && raw > 0 ? raw : (Date.parse(row?.timestamp || row?.tanggal || '') || 0);
+                    return { row, time, index };
+                })
+                .sort((a, b) => b.time - a.time || a.index - b.index);
+            let lastAyat = 0;
+            for (const entry of matches) {
+                const row = entry.row;
+                // Utamakan data slot terstruktur bila tersedia pada riwayat.
+                const slots = Array.isArray(row?.slots) ? row.slots : (Array.isArray(row?.structuredSlots) ? row.structuredSlots : []);
+                const structured = slots.find(item => norm(item?.item) === norm(surah) && (item?.mode || 'quran') !== 'iqro');
+                if (structured) {
+                    const end = Number(structured.end);
+                    const start = Number(structured.start);
+                    lastAyat = Number.isFinite(end) && end > 0 ? end : (Number.isFinite(start) && start > 0 ? start : 0);
+                    if (lastAyat) break;
+                }
+                const detail = String(row?.detail || '');
+                const escaped = surah.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const re = new RegExp(`(?:^|,\\s*)${escaped}\\s+(\\d+)(?:\\s*[-–]\\s*(\\d+))?(?=\\s*(?:\\(|,|$))`, 'i');
+                const found = detail.match(re);
+                if (found) {
+                    lastAyat = Number(found[2] || found[1]) || 0;
+                    if (lastAyat) break;
+                }
+            }
+            if (!lastAyat) {
+                window.showToast?.(`Belum ditemukan riwayat bacaan ${surah} untuk ${santriName}.`, 'error');
+                return;
+            }
+            const surahInfo = (window.surahList || []).find(item => norm(item?.name) === norm(surah));
+            if (surahInfo && lastAyat >= Number(surahInfo.ayat)) {
+                window.showToast?.(`${surah} sudah mencapai ayat terakhir (${surahInfo.ayat}).`, 'error');
+                return;
+            }
+            const nextAyat = lastAyat + 1;
+            startInput.value = String(nextAyat);
+            endInput.value = '';
+            if (startCacheKey) window.cacheFormInput?.({ value: String(nextAyat) }, startCacheKey);
+            if (endCacheKey) window.cacheFormInput?.({ value: '' }, endCacheKey);
+            startInput.dispatchEvent(new Event('input', { bubbles: true }));
+            endInput.dispatchEvent(new Event('input', { bubbles: true }));
+            window.showToast?.(`Ayat Mulai diisi ${nextAyat}. Silakan isi Ayat Sampai.`, 'success');
         };
 
         window.extractSlotEntries = function(category, santriName) {

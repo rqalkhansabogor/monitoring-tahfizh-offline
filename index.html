@@ -7934,7 +7934,6 @@
 </section>
 
 <section id="section-export" class="hidden space-y-4">
-
                 <!-- PANEL TAMBAHAN: MIGRASI AWAL LOCAL STORAGE KE GOOGLE SPREADSHEET -->
                 <div id="rqInitialMigrationPanel" class="p-4 sm:p-5 rounded-2xl border-2 border-violet-300 dark:border-violet-800 bg-violet-50/70 dark:bg-violet-950/20 space-y-4">
                     <div class="flex items-center gap-3">
@@ -7965,8 +7964,9 @@
                         <div class="h-2.5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden"><div id="rqMigProgressBar" class="h-full w-0 bg-violet-600 transition-all"></div></div>
                     </div>
                     <pre id="rqMigResult" class="hidden whitespace-pre-wrap break-words p-3 rounded-xl bg-slate-950 text-emerald-300 text-[11px] leading-relaxed max-h-72 overflow-auto"></pre>
-                    <p class="text-[10px] leading-relaxed text-slate-500 dark:text-slate-400">Catatan: migrasi hanya berjalan setelah tombol ditekan. Data lokal tidak dihapus atau ditimpa. Untuk mencegah kegagalan penulisan Google Sheets, fitur akan menahan pengiriman jika ada satu nilai key yang mendekati/melebihi batas aman ukuran sel atau payload terlalu besar.</p>
+                    <p class="text-[10px] leading-relaxed text-slate-500 dark:text-slate-400">Catatan: migrasi hanya berjalan setelah tombol ditekan. Data lokal tidak dihapus atau ditimpa. Data dikirim bertahap dalam paket kecil. Data lokal tidak dihapus, tidak ditimpa, dan migrasi hanya berjalan setelah tombol ditekan.</p>
                 </div>
+
             <div class="bg-white dark:bg-slate-800 p-4 sm:p-5 rounded-2xl shadow-sm border space-y-4">
                 <div class="flex items-center justify-between flex-wrap gap-3">
                     <h3 class="font-black text-base sm:text-lg text-emerald-800 dark:text-emerald-300">Cloud & Web Terkait</h3>
@@ -11291,226 +11291,71 @@ html.dark #rqSafetyBackupBox #rqSafetyBackupLocation b{color:#ecfdf5 !important}
 })();
 </script>
 
-
-<script>
-/* MIGRASI AWAL LOCAL STORAGE — terisolasi; tidak mengubah fungsi lama. */
+<script id="rq-migration-transport-v2">
 (function(){
-  'use strict';
-  const API_URL = "https://script.google.com/macros/s/AKfycbySqkjnClwMTO6BY_cFH0KT5Y2Hkqid0FQd6waA5f6DiO3mitwox_u4wdMyEZeC3kMTNw/exec";
-  const MAX_VALUE_CHARS = 40000; // konservatif terhadap batas 50.000 karakter per sel Google Sheets
-  const MAX_PAYLOAD_BYTES = 3500000; // batas konservatif agar request tidak terlalu besar
-  const $ = id => document.getElementById(id);
-  const els = {};
-  const getSnapshot = () => {
-    const localStorageData = {};
-    for(let i=0;i<localStorage.length;i++){
-      const key=localStorage.key(i);
-      if(key && key.startsWith('rq_')){
-        const value=localStorage.getItem(key);
-        if(typeof value !== 'string') throw new Error('Nilai Local Storage tidak valid pada key: '+key);
-        localStorageData[key]=value;
-      }
-    }
-    const santri = Array.isArray(window.santriList) ? window.santriList : [];
-    const payload = {
-      action:'migrateInitial',
-      token:'',
-      migration_id:'',
-      device_id:getDeviceId(),
-      device_name:(navigator.userAgentData?.platform || navigator.platform || 'Perangkat web')+' / '+(navigator.userAgent.includes('Mobile')?'HP':'Laptop'),
-      device_type:navigator.userAgent.includes('Mobile')?'HP':'Laptop',
-      operator:'',
-      exported_at:new Date().toISOString(),
-      app:'Monitoring Tahfizh RQ Al-Khansa',
-      format:'rq-al-khansa-web-sync',
-      version:1,
-      localStorage:localStorageData,
-      santriList:santri
-    };
-    return payload;
-  };
-  function getDeviceId(){
-    const key='rq_migration_device_id_v1';
-    let id='';
-    try{id=sessionStorage.getItem(key)||'';}catch(_){}
-    if(!id){
-      id=(window.crypto?.randomUUID ? crypto.randomUUID() : 'dev-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2));
-      try{sessionStorage.setItem(key,id);}catch(_){}
-    }
-    return id;
-  }
-  function bytes(str){return new TextEncoder().encode(str).length;}
-  function formatBytes(n){
-    if(n<1024)return n+' B';
-    if(n<1024*1024)return (n/1024).toFixed(1)+' KB';
-    return (n/1024/1024).toFixed(2)+' MB';
-  }
-  async function stableMigrationId(payload){
-    const stable={localStorage:payload.localStorage,santriList:payload.santriList};
-    const raw=JSON.stringify(stable);
-    if(crypto?.subtle){
-      const hash=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(raw));
-      return 'MIG-'+Array.from(new Uint8Array(hash)).map(x=>x.toString(16).padStart(2,'0')).join('');
-    }
-    // Fallback deterministik jika SubtleCrypto tidak tersedia.
-    let h1=2166136261,h2=0x9e3779b9;
-    for(let i=0;i<raw.length;i++){h1=Math.imul(h1^raw.charCodeAt(i),16777619);h2=Math.imul(h2+raw.charCodeAt(i),2246822519);}
-    return 'MIG-'+(h1>>>0).toString(16)+(h2>>>0).toString(16);
-  }
-  function setStatus(text,kind){
-    const e=$('rqMigApiStatus'); if(!e)return;
-    e.textContent=text;
-    e.className='text-sm font-black '+(kind==='ok'?'text-emerald-600':kind==='bad'?'text-rose-600':'text-amber-600');
-  }
-  function setProgress(label,pct){
-    if($('rqMigProgressLabel'))$('rqMigProgressLabel').textContent=label;
-    if($('rqMigProgressPct'))$('rqMigProgressPct').textContent=pct+'%';
-    if($('rqMigProgressBar'))$('rqMigProgressBar').style.width=pct+'%';
-  }
-  function preflight(){
-    const p=getSnapshot();
-    const keys=Object.keys(p.localStorage);
-    const oversized=keys.filter(k=>p.localStorage[k].length>MAX_VALUE_CHARS);
-    const json=JSON.stringify(p);
-    const size=bytes(json);
-    $('rqMigKeyCount').textContent=keys.length;
-    $('rqMigSantriCount').textContent=p.santriList.length;
-    $('rqMigPayloadSize').textContent=formatBytes(size);
-    const warnings=[];
-    if(!keys.length)warnings.push('Tidak ditemukan key rq_ pada Local Storage.');
-    if(oversized.length)warnings.push('Ada nilai yang melebihi batas aman 40.000 karakter: '+oversized.join(', '));
-    if(size>MAX_PAYLOAD_BYTES)warnings.push('Ukuran payload melebihi batas aman 3,5 MB.');
-    if(!Array.isArray(p.santriList))warnings.push('Daftar santri runtime tidak valid.');
-    const ok=keys.length>0 && oversized.length===0 && size<=MAX_PAYLOAD_BYTES;
-    $('rqMigPreflightNotice').textContent=ok
-      ? 'Pemeriksaan awal lolos. '+keys.length+' key rq_ siap disalin. Data lokal tidak diubah.'
-      : 'Pemeriksaan belum lolos: '+warnings.join(' ');
-    $('rqMigPreflightNotice').className='p-3 rounded-xl border text-[11px] font-bold '+(ok?'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200':'bg-rose-50 dark:bg-rose-950/30 border-rose-300 dark:border-rose-800 text-rose-800 dark:text-rose-200');
-    $('rqMigStartBtn').disabled=!ok;
-    return {ok,p,size,keys:keys.length,oversized};
-  }
-  async function post(payload){
-    const response=await fetch(API_URL,{
-      method:'POST',
-      mode:'cors',
-      redirect:'follow',
-      credentials:'include',
-      headers:{'Content-Type':'text/plain;charset=utf-8'},
-      body:JSON.stringify(payload)
-    });
-    const text=await response.text();
-    let data;
-    try{data=JSON.parse(text);}catch(_){throw new Error('Respons server bukan JSON yang valid. HTTP '+response.status+'. '+text.slice(0,250));}
-    if(!response.ok || !data || data.ok!==true)throw new Error(data?.error||('HTTP '+response.status));
-    return data;
-  }
-  async function testConnection(){
-    const token=$('rqMigApiToken').value.trim();
-    if(!token){alert('Masukkan token API terlebih dahulu.');return;}
-    $('rqMigPingBtn').disabled=true;
-    setStatus('Memeriksa…','wait');
-    try{
-      const result=await post({action:'ping',token});
-      setStatus('Terhubung','ok');
-      $('rqMigPreflightNotice').textContent=result.message||'Koneksi API berhasil.';
-    }catch(e){
-      setStatus('Gagal','bad');
-      $('rqMigPreflightNotice').textContent='Tes koneksi gagal: '+(e.message||String(e))+' Jika server menjawab "Action tidak dikenal", tambahkan dukungan action ping pada doPost Apps Script lalu deploy versi baru.';
-    }finally{$('rqMigPingBtn').disabled=false;}
-  }
-  async function startMigration(){
-    const check=preflight();
-    if(!check.ok)return;
-    const token=$('rqMigApiToken').value.trim();
-    if(!token){alert('Masukkan token API terlebih dahulu.');return;}
-    const operator=$('rqMigOperator').value.trim();
-    const confirmed=confirm('MIGRASI AWAL LOCAL STORAGE\\n\\n'+check.keys+' key rq_ dan '+check.p.santriList.length+' data santri runtime akan disalin ke Google Spreadsheet.\\n\\nData Local Storage di perangkat TIDAK akan dihapus atau diubah.\\n\\nLanjutkan?');
-    if(!confirmed)return;
-    const btn=$('rqMigStartBtn'),ping=$('rqMigPingBtn'),refresh=$('rqMigRefreshBtn');
-    btn.disabled=true;ping.disabled=true;refresh.disabled=true;
-    $('rqMigResult').classList.add('hidden');
-    try{
-      setProgress('Menyiapkan snapshot…',10);
-      const payload=check.p;
-      payload.token=token;
-      payload.operator=operator;
-      payload.migration_id=await stableMigrationId(payload);
-      setProgress('Mengirim data ke Google Spreadsheet…',35);
-      const result=await post(payload);
-      setProgress('Server mengonfirmasi hasil migrasi.',100);
-      const r=result.result||{};
-      $('rqMigResult').textContent=[
-        'STATUS: BERHASIL',
-        'Migration ID: '+(r.migration_id||payload.migration_id),
-        'Key diterima: '+(r.keys_received??'-'),
-        'Key ditambahkan: '+(r.keys_added??'-'),
-        'Key tidak berubah: '+(r.keys_unchanged??'-'),
-        'Konflik: '+(r.conflicts??'-'),
-        'Key konflik: '+((r.conflict_keys||[]).join(', ')||'-'),
-        'Local Storage berubah: '+(r.local_storage_changed===false?'TIDAK':'Tidak diketahui'),
-        'Selesai: '+(r.completed_at||new Date().toISOString())
-      ].join('\\n');
-      $('rqMigResult').classList.remove('hidden');
-      setStatus('Terhubung','ok');
-      preflight();
-    }catch(e){
-      setProgress('Migrasi gagal — data lokal tetap aman.',0);
-      $('rqMigResult').textContent='STATUS: GAGAL\\n'+(e.message||String(e))+'\\n\\nTidak ada penghapusan Local Storage dari fitur ini. Periksa SyncLog sebelum mencoba ulang agar tidak membuat proses ganda.';
-      $('rqMigResult').classList.remove('hidden');
-      setStatus('Gagal','bad');
-    }finally{
-      btn.disabled=false;ping.disabled=false;refresh.disabled=false;
-      preflight();
-    }
-  }
-  function mount(){
-    ['rqMigKeyCount','rqMigSantriCount','rqMigPayloadSize','rqMigApiStatus','rqMigPreflightNotice','rqMigStartBtn','rqMigResult'].forEach(id=>els[id]=$(id));
-    if(!$('rqInitialMigrationPanel')||$('rqInitialMigrationPanel').dataset.ready==='1')return;
-    $('rqInitialMigrationPanel').dataset.ready='1';
-    $('rqMigRefreshBtn').addEventListener('click',()=>{try{preflight();}catch(e){$('rqMigPreflightNotice').textContent=e.message||String(e);}});
-    $('rqMigPingBtn').addEventListener('click',testConnection);
-    $('rqMigStartBtn').addEventListener('click',startMigration);
-    try{preflight();}catch(e){$('rqMigPreflightNotice').textContent='Gagal membaca data lokal: '+(e.message||String(e));}
-  }
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount,{once:true});else mount();
+ 'use strict';
+ const API_URL='https://script.google.com/macros/s/AKfycbySqkjnClwMTO6BY_cFH0KT5Y2Hkqid0FQd6waA5f6DiO3mitwox_u4wdMyEZeC3kMTNw/exec';
+ const BATCH_TARGET=120*1024; // target JSON bytes per form post
+ const $=id=>document.getElementById(id);
+ let busy=false, frame=null, frameReady=false, pending=null;
+ function ensureTransport(){
+   if(frame) return;
+   frame=document.createElement('iframe'); frame.name='rqMigrationResponseFrame'; frame.id='rqMigrationResponseFrame';
+   frame.style.display='none'; frame.setAttribute('aria-hidden','true'); document.body.appendChild(frame);
+   window.addEventListener('message',function(ev){
+     if(!frame || ev.source!==frame.contentWindow || !ev.data || ev.data.type!=='RQ_MIGRATION_RESPONSE') return;
+     if(!pending || ev.data.requestId!==pending.id) return;
+     const p=pending; pending=null; clearTimeout(p.timer);
+     if(ev.data.ok) p.resolve(ev.data.data); else p.reject(new Error(ev.data.error||'Server mengembalikan kesalahan.'));
+   });
+ }
+ function postForm(payload,timeoutMs=90000){
+   ensureTransport();
+   return new Promise((resolve,reject)=>{
+     if(pending) return reject(new Error('Masih ada request yang berjalan.'));
+     const id=(crypto&&crypto.randomUUID)?crypto.randomUUID():('rq-'+Date.now()+'-'+Math.random().toString(36).slice(2));
+     payload.request_id=id;
+     const form=document.createElement('form'); form.method='POST'; form.action=API_URL; form.target=frame.name; form.acceptCharset='UTF-8'; form.enctype='application/x-www-form-urlencoded'; form.style.display='none';
+     const input=document.createElement('input'); input.type='hidden'; input.name='payload'; input.value=JSON.stringify(payload); form.appendChild(input);
+     const req={id,resolve,reject,timer:setTimeout(()=>{if(pending&&pending.id===id){pending=null;reject(new Error('Waktu tunggu habis. Periksa SyncLog sebelum mengirim ulang.'));}},timeoutMs)};
+     pending=req; document.body.appendChild(form);
+     try{form.submit();}catch(e){clearTimeout(req.timer);pending=null;reject(e);} 
+     setTimeout(()=>form.remove(),1000);
+   });
+ }
+ function deviceId(){
+   const k='rq_migration_device_id_v1'; let id='';
+   try{id=sessionStorage.getItem(k)||'';}catch(_){}
+   if(!id){id=(crypto&&crypto.randomUUID)?crypto.randomUUID():('device-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2));try{sessionStorage.setItem(k,id);}catch(_){} }
+   return id;
+ }
+ function snapshot(){
+   const localStorageData={};
+   for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&k.startsWith('rq_')){const v=localStorage.getItem(k);if(typeof v!=='string')throw new Error('Nilai bukan string: '+k);localStorageData[k]=v;}}
+   const santri=Array.isArray(window.santriList)?window.santriList:[];
+   return {localStorage:localStorageData,santriList:santri};
+ }
+ const enc=s=>new TextEncoder().encode(s).length;
+ function fmt(n){return n<1024?n+' B':n<1048576?(n/1024).toFixed(1)+' KB':(n/1048576).toFixed(2)+' MB';}
+ async function hashId(obj){const raw=JSON.stringify(obj);if(!crypto||!crypto.subtle)throw new Error('Browser tidak mendukung SHA-256. Buka website melalui HTTPS.');const h=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(raw));return 'MIG-'+Array.from(new Uint8Array(h)).map(x=>x.toString(16).padStart(2,'0')).join('');}
+ function status(t,k){const e=$('rqMigApiStatus');if(!e)return;e.textContent=t;e.className='text-sm font-black '+(k==='ok'?'text-emerald-600':k==='bad'?'text-rose-600':'text-amber-600');}
+ function progress(t,n){$('rqMigProgressLabel').textContent=t;$('rqMigProgressPct').textContent=n+'%';$('rqMigProgressBar').style.width=n+'%';}
+ function notice(t,ok){const e=$('rqMigPreflightNotice');e.textContent=t;e.className='p-3 rounded-xl border text-[11px] font-bold '+(ok?'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200':'bg-rose-50 dark:bg-rose-950/30 border-rose-300 dark:border-rose-800 text-rose-800 dark:text-rose-200');}
+ function inspect(){const s=snapshot(),keys=Object.keys(s.localStorage).sort(),payload={action:'migrateInitial',localStorage:s.localStorage,santriList:s.santriList};const size=enc(JSON.stringify(payload));$('rqMigKeyCount').textContent=keys.length;$('rqMigSantriCount').textContent=s.santriList.length;$('rqMigPayloadSize').textContent=fmt(size);const ok=keys.length>0;notice(ok?'Pemeriksaan berhasil. '+keys.length+' key rq_ siap diproses dalam batch kecil. Data lokal hanya dibaca.':'Tidak ditemukan key rq_ pada Local Storage.',ok);$('rqMigStartBtn').disabled=!ok||busy;return {s,keys,size,ok};}
+ async function ping(){const token=$('rqMigApiToken').value.trim();if(!token){alert('Masukkan token API terlebih dahulu.');return;}const b=$('rqMigPingBtn');b.disabled=true;status('Menghubungkan…','wait');try{const r=await postForm({action:'ping',token});if(!r||r.ok!==true)throw new Error(r&&r.error||'Respons ping tidak valid.');status('Terhubung','ok');notice('POST ping berhasil. Server dapat dibaca oleh website. '+(r.time||''),true);}catch(e){status('Gagal','bad');notice('POST ping gagal: '+(e.message||e),false);}finally{b.disabled=false;}}
+ function makeBatches(keys,local,santri){if(JSON.stringify(santri).length>35000)throw new Error('Data santri runtime melebihi batas aman satu sel. Perlu pemecahan khusus sebelum migrasi.');const batches=[];let current={},currentSize=0;for(const k of keys){const v=local[k];const itemSize=enc(JSON.stringify({[k]:v}));if(v.length>35000)throw new Error('Nilai key '+k+' terlalu besar untuk satu sel Spreadsheet. Perlu rancangan penyimpanan khusus sebelum dikirim.');if(Object.keys(current).length&&currentSize+itemSize>BATCH_TARGET){batches.push(current);current={};currentSize=0;}current[k]=v;currentSize+=itemSize;}if(Object.keys(current).length)batches.push(current);if(!batches.length)batches.push({});return batches;}
+ async function migrate(){if(busy)return;let info;try{info=inspect();}catch(e){notice('Gagal membaca data lokal: '+e.message,false);return;}if(!info.ok)return;const token=$('rqMigApiToken').value.trim();if(!token){alert('Masukkan token API.');return;}if($('rqMigApiStatus').textContent!=='Terhubung'){alert('Tes koneksi POST harus berhasil terlebih dahulu.');return;}if(!confirm('MIGRASI AWAL\n\n'+info.keys.length+' key Local Storage dan '+info.s.santriList.length+' data santri runtime akan disalin ke Spreadsheet dalam beberapa batch. Data lokal tidak dihapus atau diubah. Lanjutkan?'))return;
+ busy=true;const buttons=['rqMigStartBtn','rqMigPingBtn','rqMigRefreshBtn'];buttons.forEach(id=>$(id).disabled=true);$('rqMigResult').classList.add('hidden');
+ try{const migrationId=await hashId(info.s);const batches=makeBatches(info.keys,info.s.localStorage,info.s.santriList);let totals={keys_received:0,keys_added:0,keys_unchanged:0,conflicts:0,conflict_keys:[]};for(let i=0;i<batches.length;i++){const payload={action:'migrateInitial',token,migration_id:migrationId,device_id:deviceId(),device_name:(navigator.platform||'Browser')+' / '+(/Mobi/i.test(navigator.userAgent)?'HP':'Laptop'),device_type:/Mobi/i.test(navigator.userAgent)?'HP':'Laptop',operator:$('rqMigOperator').value.trim(),exported_at:new Date().toISOString(),app:'Monitoring Tahfizh RQ Al-Khansa',format:'rq-al-khansa-web-sync',version:1,localStorage:batches[i],santriList:i===0?info.s.santriList:[]};progress('Mengirim batch '+(i+1)+' dari '+batches.length+'…',Math.round(i/batches.length*100));const r=await postForm(payload,120000);if(!r||r.ok!==true)throw new Error(r&&r.error||'Respons batch tidak valid.');const x=r.result||{};['keys_received','keys_added','keys_unchanged','conflicts'].forEach(k=>totals[k]+=(Number(x[k])||0));totals.conflict_keys.push(...(x.conflict_keys||[]));progress('Batch '+(i+1)+' dari '+batches.length+' diterima server.',Math.round((i+1)/batches.length*100));}
+ $('rqMigResult').textContent=['STATUS: SEMUA BATCH DITERIMA SERVER','Migration ID: '+migrationId,'Jumlah batch: '+batches.length,'Key diterima: '+totals.keys_received,'Key ditambahkan: '+totals.keys_added,'Key tidak berubah: '+totals.keys_unchanged,'Konflik: '+totals.conflicts,'Key konflik: '+(totals.conflict_keys.join(', ')||'-'),'Local Storage berubah: TIDAK','Catatan: periksa tab SnapshotData dan SyncLog untuk verifikasi akhir.'].join('\n');$('rqMigResult').classList.remove('hidden');progress('Semua batch mendapat respons sukses.',100);status('Terhubung','ok');
+ }catch(e){progress('Proses terhenti. Data lokal tetap aman.',0);$('rqMigResult').textContent='STATUS: BELUM SELESAI\n'+(e.message||e)+'\n\nJangan langsung mengulang sebelum memeriksa SnapshotData dan SyncLog. Batch yang sudah diterima menggunakan migration ID yang sama sehingga pengiriman ulang data identik akan dilewati.';$('rqMigResult').classList.remove('hidden');status('Perlu pemeriksaan','bad');}finally{busy=false;buttons.forEach(id=>$(id).disabled=false);try{inspect();}catch(_){}}
+ }
+ function mount(){if(!$('rqInitialMigrationPanel')||$('rqInitialMigrationPanel').dataset.transportReady==='1')return;$('rqInitialMigrationPanel').dataset.transportReady='1';$('rqMigRefreshBtn').addEventListener('click',()=>{try{inspect();}catch(e){notice(e.message,false);}});$('rqMigPingBtn').addEventListener('click',ping);$('rqMigStartBtn').addEventListener('click',migrate);try{inspect();}catch(e){notice(e.message,false);}ensureTransport();}
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount,{once:true});else mount();
 })();
 </script>
-
-
-<!-- PATCH POSISI PANEL MIGRASI: selalu tampil tepat di bawah kartu Download CSV -->
-<script id="rq-migration-panel-priority-position-v1">
-(function(){
-  'use strict';
-  function placeMigrationPanel(){
-    const section=document.getElementById('section-export');
-    const panel=document.getElementById('rqInitialMigrationPanel');
-    if(!section || !panel) return;
-    const downloadBtn=section.querySelector('button[onclick*="exportAllLocalDataToCsv"]');
-    const downloadCard=downloadBtn && (downloadBtn.closest('.rq-download-priority-card') || downloadBtn.closest('.p-3\\.5') || downloadBtn.parentElement);
-    if(downloadCard && downloadCard.parentElement===section){
-      if(downloadCard.nextElementSibling!==panel) downloadCard.insertAdjacentElement('afterend',panel);
-    } else if(panel.parentElement!==section || panel!==section.firstElementChild){
-      section.insertBefore(panel,section.firstElementChild);
-    }
-    panel.style.display='block';
-    panel.classList.remove('hidden');
-  }
-  if(document.readyState==='loading'){
-    document.addEventListener('DOMContentLoaded',function(){
-      placeMigrationPanel();
-      setTimeout(placeMigrationPanel,400);
-      setTimeout(placeMigrationPanel,1300);
-    },{once:true});
-  } else {
-    placeMigrationPanel();
-    setTimeout(placeMigrationPanel,400);
-    setTimeout(placeMigrationPanel,1300);
-  }
-  document.addEventListener('click',function(e){
-    const tab=e.target.closest('#btnTab-export');
-    if(tab) setTimeout(placeMigrationPanel,100);
-  });
-})();
+<script id="rq-migration-panel-position-v2">
+(function(){function place(){const s=document.getElementById('section-export'),p=document.getElementById('rqInitialMigrationPanel');if(!s||!p)return;const b=s.querySelector('button[onclick*="exportAllLocalDataToCsv"]');if(!b)return;let c=b.closest('.p-3\\.5')||b.parentElement; if(c&&c.parentElement===s&&p.previousElementSibling!==c)c.insertAdjacentElement('afterend',p);}if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{place();setTimeout(place,400);setTimeout(place,1200);},{once:true});else{place();setTimeout(place,400);setTimeout(place,1200);}})();
 </script>
 
 </body>

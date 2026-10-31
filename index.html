@@ -7350,6 +7350,63 @@
   }
 }
 </style>
+<!-- RQ PATCH: Tombol X besar merah untuk menghapus teks pencarian nama surat saja -->
+<style id="rq-clear-surah-search-style">
+  .rq-surah-search-clear-btn{
+    position:absolute!important; right:8px!important; top:28px!important;
+    width:42px!important; height:42px!important; min-width:42px!important;
+    display:flex!important; align-items:center!important; justify-content:center!important;
+    padding:0!important; margin:0!important; border:2px solid #dc2626!important;
+    border-radius:50%!important; background:#fee2e2!important; color:#dc2626!important;
+    font-family:Arial,sans-serif!important; font-size:34px!important;
+    line-height:1!important; font-weight:900!important; text-align:center!important;
+    cursor:pointer!important; z-index:9999!important; box-shadow:0 2px 6px rgba(0,0,0,.18)!important;
+  }
+  .rq-surah-search-clear-btn:hover{background:#fecaca!important;color:#b91c1c!important;}
+  .rq-surah-search-clear-btn:active{transform:scale(.94)!important;}
+  .rq-surah-search-clear-btn[hidden]{display:none!important;}
+  input.rq-surah-search-clear-input{padding-right:58px!important;box-sizing:border-box!important;}
+</style>
+<script id="rq-clear-surah-search-script">
+(function(){
+  const isSurahSearch = el => el instanceof HTMLInputElement && (
+    /SuratSearch_|_surah_search_/i.test(el.id) || el.hasAttribute('data-rq-search') ||
+    /ketik\s*(\/\s*)?cari\s*nama\s*surat|ketik nama surat/i.test(el.placeholder||'')
+  );
+  function enhance(el){
+    if(!isSurahSearch(el) || el.dataset.rqClearSurahReady==='1') return;
+    el.dataset.rqClearSurahReady='1';
+    el.classList.add('rq-surah-search-clear-input');
+    const anchor=el.parentElement || el.parentNode;
+    if(!anchor) return;
+    const computed=window.getComputedStyle(anchor);
+    if(computed.position==='static') anchor.style.position='relative';
+    const btn=document.createElement('button');
+    btn.type='button'; btn.className='rq-surah-search-clear-btn'; btn.textContent='×';
+    btn.setAttribute('aria-label','Hapus teks pencarian nama surat');
+    btn.title='Hapus teks pencarian';
+    btn.hidden=!String(el.value||'').length;
+    anchor.appendChild(btn);
+    const update=()=>{btn.hidden=!String(el.value||'').length;};
+    el.addEventListener('input',update); el.addEventListener('change',update);
+    btn.addEventListener('click',()=>{
+      el.value='';
+      el.dispatchEvent(new Event('input',{bubbles:true}));
+      el.dispatchEvent(new Event('change',{bubbles:true}));
+      update(); el.focus();
+    });
+  }
+  function scan(root=document){
+    if(root.matches?.('input')) enhance(root);
+    root.querySelectorAll?.('input').forEach(enhance);
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',()=>scan()); else scan();
+  const observer=new MutationObserver(records=>records.forEach(r=>r.addedNodes.forEach(n=>{if(n.nodeType===1)scan(n);} )));
+  observer.observe(document.documentElement,{childList:true,subtree:true});
+})();
+</script>
+<!-- END RQ PATCH -->
+
 </head>
 <body class="bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 min-h-full flex flex-col antialiased transition-colors duration-200">
     <div id="toastContainer" class="fixed top-4 right-4 z-[20000] space-y-2 w-[min(92vw,420px)] pointer-events-none"></div>
@@ -9685,7 +9742,7 @@ html.dark #rqSafetyBackupBox #rqSafetyBackupLocation b{color:#ecfdf5 !important}
     var launcher=document.createElement('button');
     launcher.id='rqMobileHeaderLauncher';
     launcher.type='button';
-    launcher.setAttribute('aria-label','Buka menu Monitoring Tahfizh');
+    launcher.setAttribute('aria-label','Menu Monitoring Tahfizh. Ketuk untuk membuka.');
     launcher.setAttribute('title','Buka menu');
     launcher.innerHTML='<span class="rq-launcher-icon"><i></i><i></i><i></i><i></i></span>';
     document.body.appendChild(launcher);
@@ -10095,9 +10152,9 @@ html.dark #rqSafetyBackupBox #rqSafetyBackupLocation b{color:#ecfdf5 !important}
     var launcher=document.createElement('button');
     launcher.id='rqMobileHeaderProLauncher';
     launcher.type='button';
-    launcher.setAttribute('aria-label','Buka menu Monitoring Tahfizh');
-    launcher.title='Klik untuk membuka menu. Tahan dan geser untuk memindahkan posisi.';
-    launcher.innerHTML='<span class="rq-pro-icon"><i class="fa-solid fa-grip-vertical"></i></span><span class="rq-pro-hint">geser</span>';
+    launcher.setAttribute('aria-label','Menu Monitoring Tahfizh. Ketuk untuk membuka.');
+    launcher.title='Klik untuk membuka menu.';
+    launcher.innerHTML='<span class="rq-pro-icon"><i class="fa-solid fa-grip-vertical"></i></span>'; 
     document.body.appendChild(launcher);
 
     var row=h.querySelector('.max-w-7xl > div:first-child');
@@ -10130,61 +10187,12 @@ html.dark #rqSafetyBackupBox #rqSafetyBackupLocation b{color:#ecfdf5 !important}
     }
     apply();
 
-    /* Drag aman: selama digeser hanya ubah posisi visual.
-       localStorage cukup ditulis sekali saat selesai agar HP tidak terbebani. */
-    var down=false,moved=false,sx=0,sy=0,ox=0,oy=0,pendingX=null,pendingY=null,raf=0;
-    function drawDragPosition(){
-      raf=0;
-      if(pendingX===null)return;
-      var w=window.innerWidth,hg=window.innerHeight,sz=62;
-      var x=Math.max(8,Math.min(pendingX,w-sz-8));
-      var y=Math.max(8,Math.min(pendingY,hg-sz-8));
-      pos.x=x;pos.y=y;
-      launcher.style.left=x+'px';
-      launcher.style.top=y+'px';
-    }
-    function queueDragPosition(x,y){
-      pendingX=x;pendingY=y;
-      if(!raf)raf=requestAnimationFrame(drawDragPosition);
-    }
-    function finishDrag(){
-      if(raf){cancelAnimationFrame(raf);raf=0;}
-      if(pendingX!==null){drawDragPosition();pendingX=pendingY=null;}
-      clamp();
-      launcher.style.left=pos.x+'px';
-      launcher.style.top=pos.y+'px';
-      try{localStorage.setItem(KEY,JSON.stringify(pos));}catch(_){}
-    }
-    launcher.addEventListener('pointerdown',function(e){
-      if(!mobile()) return;
-      down=true;moved=false;sx=e.clientX;sy=e.clientY;ox=pos.x;oy=pos.y;
-      launcher.classList.add('rq-pro-dragging');
-      try{launcher.setPointerCapture(e.pointerId);}catch(_){ }
-    },{passive:true});
-    launcher.addEventListener('pointermove',function(e){
-      if(!down)return;
-      var dx=e.clientX-sx,dy=e.clientY-sy;
-      if(Math.abs(dx)+Math.abs(dy)>7)moved=true;
-      if(moved) queueDragPosition(ox+dx,oy+dy);
-    },{passive:true});
-    launcher.addEventListener('pointerup',function(e){
-      if(!down)return;
-      down=false;
-      if(moved){
-        finishDrag();
-      }else{
-        if(raf){cancelAnimationFrame(raf);raf=0;}
-        pendingX=pendingY=null;
-        open(!h.classList.contains('rq-mobile-pro-open'));
-      }
-      launcher.classList.remove('rq-pro-dragging');
-      try{launcher.releasePointerCapture(e.pointerId);}catch(_){}
-    },{passive:true});
-    launcher.addEventListener('pointercancel',function(){
-      if(!down)return;
-      down=false;
-      if(moved)finishDrag();else{if(raf){cancelAnimationFrame(raf);raf=0;}pendingX=pendingY=null;}
-      launcher.classList.remove('rq-pro-dragging');
+    /* Launcher dikunci: tidak menerima drag/swipe untuk mengubah posisi. */
+    launcher.style.cursor='pointer';
+    launcher.style.touchAction='manipulation';
+    launcher.addEventListener('click',function(e){
+      e.preventDefault();
+      open(!h.classList.contains('rq-mobile-pro-open'));
     });
 
     function open(v){
@@ -11067,15 +11075,15 @@ html.dark #rqSafetyBackupBox #rqSafetyBackupLocation b{color:#ecfdf5 !important}
 </script>
 
 
-<!-- PATCH ADDITIF: Tombol Cepat Input Santri, dapat dipindahkan dan posisi tersimpan lokal. -->
+<!-- PATCH: Tombol Cepat Input Santri dikunci di atas area Input dan mengikuti scroll viewport. -->
 <style id="rq-floating-input-button-style">
   #rqFloatingQuickInput {
     position: fixed;
     z-index: 9998;
-    left: auto;
-    top: auto;
+    top: 82px;
     right: 18px;
-    bottom: 88px;
+    left: auto;
+    bottom: auto;
     width: 184px;
     min-height: 68px;
     display: flex;
@@ -11090,17 +11098,15 @@ html.dark #rqSafetyBackupBox #rqSafetyBackupLocation b{color:#ecfdf5 !important}
     box-shadow: 0 10px 28px rgba(4,120,87,.38), 0 3px 8px rgba(0,0,0,.18);
     font: 900 15px/1.25 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
     text-align: left;
-    cursor: grab;
-    touch-action: none;
+    cursor: pointer;
     user-select: none;
     -webkit-user-select: none;
-    transition: box-shadow .18s ease, transform .18s ease, background .18s ease;
+    transition: box-shadow .18s ease, background .18s ease;
   }
   #rqFloatingQuickInput:hover {
     background: linear-gradient(135deg,#10b981,#047857);
     box-shadow: 0 13px 32px rgba(4,120,87,.45), 0 4px 10px rgba(0,0,0,.2);
   }
-  #rqFloatingQuickInput:active { cursor: grabbing; }
   #rqFloatingQuickInput .rq-fqi-icon {
     width: 39px; height: 39px; flex: 0 0 39px;
     display: flex; align-items: center; justify-content: center;
@@ -11113,7 +11119,7 @@ html.dark #rqSafetyBackupBox #rqSafetyBackupLocation b{color:#ecfdf5 !important}
   #rqFloatingQuickInput:focus-visible { outline: 3px solid #fbbf24; outline-offset: 4px; }
   @media (max-width: 640px) {
     #rqFloatingQuickInput {
-      right: 10px; bottom: 76px;
+      top: 72px; right: 10px;
       width: 166px; min-height: 62px;
       padding: 10px 12px; gap: 9px; border-radius: 17px;
     }
@@ -11128,41 +11134,7 @@ html.dark #rqSafetyBackupBox #rqSafetyBackupLocation b{color:#ecfdf5 !important}
 <script id="rq-floating-input-button-script">
 (function () {
   'use strict';
-  const POSITION_KEY = 'rq_floating_quick_input_position_v1';
   const BUTTON_ID = 'rqFloatingQuickInput';
-  let button = null;
-  let pointerStart = null;
-  let dragMoved = false;
-  let suppressClick = false;
-
-  function clampPosition(left, top) {
-    const margin = 8;
-    const maxLeft = Math.max(margin, window.innerWidth - (button?.offsetWidth || 180) - margin);
-    const maxTop = Math.max(margin, window.innerHeight - (button?.offsetHeight || 68) - margin);
-    return {
-      left: Math.min(Math.max(margin, left), maxLeft),
-      top: Math.min(Math.max(margin, top), maxTop)
-    };
-  }
-
-  function savePosition() {
-    if (!button) return;
-    const rect = button.getBoundingClientRect();
-    try {
-      localStorage.setItem(POSITION_KEY, JSON.stringify({
-        left: Math.round(rect.left), top: Math.round(rect.top)
-      }));
-    } catch (_) {}
-  }
-
-  function applyPosition(left, top) {
-    if (!button) return;
-    const p = clampPosition(left, top);
-    button.style.left = p.left + 'px';
-    button.style.top = p.top + 'px';
-    button.style.right = 'auto';
-    button.style.bottom = 'auto';
-  }
 
   function openInput() {
     // Gunakan navigasi dan form Input yang sudah ada; tidak membuat form atau penyimpanan baru.
@@ -11176,78 +11148,16 @@ html.dark #rqSafetyBackupBox #rqSafetyBackupLocation b{color:#ecfdf5 !important}
     }
   }
 
-  function beginPointer(e) {
-    if (e.button !== undefined && e.button !== 0) return;
-    const rect = button.getBoundingClientRect();
-    pointerStart = {
-      id: e.pointerId, x: e.clientX, y: e.clientY,
-      left: rect.left, top: rect.top
-    };
-    dragMoved = false;
-    suppressClick = false;
-    try { button.setPointerCapture(e.pointerId); } catch (_) {}
-  }
-
-  function movePointer(e) {
-    if (!pointerStart || e.pointerId !== pointerStart.id) return;
-    const dx = e.clientX - pointerStart.x;
-    const dy = e.clientY - pointerStart.y;
-    if (Math.abs(dx) > 5 || Math.abs(dy) > 5) dragMoved = true;
-    if (dragMoved) {
-      applyPosition(pointerStart.left + dx, pointerStart.top + dy);
-      e.preventDefault();
-    }
-  }
-
-  function endPointer(e) {
-    if (!pointerStart || (e.pointerId !== undefined && e.pointerId !== pointerStart.id)) return;
-    if (dragMoved) {
-      savePosition();
-      suppressClick = true;
-      setTimeout(() => { suppressClick = false; }, 250);
-    }
-    pointerStart = null;
-  }
-
   function mount() {
     if (document.getElementById(BUTTON_ID)) return;
-    button = document.createElement('button');
+    const button = document.createElement('button');
     button.type = 'button';
     button.id = BUTTON_ID;
-    button.setAttribute('aria-label', 'Buka menu Input Santri. Tombol dapat digeser untuk memindahkan posisi.');
-    button.title = 'Klik untuk membuka Input Santri. Tekan dan geser untuk memindahkan tombol.';
-    button.innerHTML = '<span class="rq-fqi-icon" aria-hidden="true"><i class="fa-solid fa-pen-to-square"></i></span><span class="rq-fqi-copy"><span class="rq-fqi-title">INPUT SANTRI</span><span class="rq-fqi-subtitle">Akses cepat · Geser untuk pindah</span></span>';
+    button.setAttribute('aria-label', 'Buka menu Input Santri');
+    button.title = 'Klik untuk membuka Input Santri';
+    button.innerHTML = '<span class="rq-fqi-icon" aria-hidden="true"><i class="fa-solid fa-pen-to-square"></i></span><span class="rq-fqi-copy"><span class="rq-fqi-title">INPUT SANTRI</span><span class="rq-fqi-subtitle">Akses cepat</span></span>';
     document.body.appendChild(button);
-
-    let saved = null;
-    try { saved = JSON.parse(localStorage.getItem(POSITION_KEY) || 'null'); } catch (_) {}
-    if (saved && Number.isFinite(saved.left) && Number.isFinite(saved.top)) {
-      applyPosition(saved.left, saved.top);
-    } else {
-      const rect = button.getBoundingClientRect();
-      applyPosition(window.innerWidth - rect.width - (window.innerWidth <= 640 ? 10 : 18),
-        window.innerHeight - rect.height - (window.innerWidth <= 640 ? 76 : 88));
-    }
-
-    button.addEventListener('pointerdown', beginPointer);
-    button.addEventListener('pointermove', movePointer);
-    button.addEventListener('pointerup', endPointer);
-    button.addEventListener('pointercancel', endPointer);
-    button.addEventListener('click', function (e) {
-      if (suppressClick) {
-        e.preventDefault();
-        e.stopPropagation();
-        suppressClick = false;
-        return;
-      }
-      openInput();
-    });
-    window.addEventListener('resize', function () {
-      if (!button) return;
-      const r = button.getBoundingClientRect();
-      applyPosition(r.left, r.top);
-      savePosition();
-    });
+    button.addEventListener('click', openInput);
   }
 
   if (document.readyState === 'loading') {
@@ -12743,7 +12653,7 @@ html.dark #rqSafetyBackupBox #rqSafetyBackupLocation b{color:#ecfdf5 !important}
         }catch(err){console.warn('Reset pencarian sebelum membuka Input Santri gagal:',err);}
       },true);
       quickInput.setAttribute('aria-label','Buka Input Santri. Pencarian nama sebelumnya akan dikosongkan. Tombol dapat digeser.');
-      quickInput.title='Klik untuk membuka Input Santri dan mengosongkan pencarian nama sebelumnya. Tekan dan geser untuk memindahkan tombol.';
+      quickInput.title='Klik untuk membuka Input Santri dan mengosongkan pencarian nama sebelumnya.';
     }
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});
@@ -12797,3 +12707,30 @@ html.dark #rqSafetyBackupBox #rqSafetyBackupLocation b{color:#ecfdf5 !important}
   }
 }
 </style>
+
+<style id="rq-lock-floating-menu-position-v1">
+@media (min-width:768px){
+ #rqMobileHeaderProLauncher{cursor:pointer!important;touch-action:manipulation!important;user-select:none!important;-webkit-user-select:none!important;}
+ #rqMobileHeaderProLauncher .rq-pro-hint{display:none!important;}
+}
+@media (max-width:767px){
+ #rqMobileHeaderProLauncher{cursor:pointer!important;touch-action:manipulation!important;user-select:none!important;-webkit-user-select:none!important;}
+ #rqMobileHeaderProLauncher .rq-pro-hint{display:none!important;}
+}
+</style>
+<script id="rq-lock-floating-menu-position-v1-script">
+(function(){
+ function clean(){
+  var b=document.getElementById('rqMobileHeaderProLauncher');
+  if(b){b.querySelectorAll('.rq-pro-hint').forEach(function(n){n.remove();});
+   b.title='Klik untuk membuka menu.';
+   b.setAttribute('aria-label','Menu Monitoring Tahfizh. Ketuk untuk membuka.');
+   b.style.cursor='pointer';b.style.touchAction='manipulation';
+  }
+  var q=document.getElementById('rqFloatingQuickInput');
+  if(q){q.title='Klik untuk membuka Input Santri dan mengosongkan pencarian nama sebelumnya.';
+   q.setAttribute('aria-label','Buka Input Santri. Pencarian nama sebelumnya akan dikosongkan.');}
+ }
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',clean,{once:true});else clean();
+})();
+</script>

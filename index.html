@@ -7353,17 +7353,17 @@
 <!-- RQ PATCH: Tombol X besar merah untuk menghapus teks pencarian nama surat saja -->
 <style id="rq-clear-surah-search-style">
   .rq-surah-search-clear-btn{
-    position:absolute!important; right:8px!important; top:28px!important;
-    width:42px!important; height:42px!important; min-width:42px!important;
+    position:absolute!important; right:0!important; top:50%!important; transform:translateY(-50%)!important;
+    width:36px!important; height:36px!important; min-width:36px!important;
     display:flex!important; align-items:center!important; justify-content:center!important;
     padding:0!important; margin:0!important; border:2px solid #dc2626!important;
     border-radius:50%!important; background:#fee2e2!important; color:#dc2626!important;
-    font-family:Arial,sans-serif!important; font-size:34px!important;
+    font-family:Arial,sans-serif!important; font-size:30px!important;
     line-height:1!important; font-weight:900!important; text-align:center!important;
     cursor:pointer!important; z-index:9999!important; box-shadow:0 2px 6px rgba(0,0,0,.18)!important;
   }
   .rq-surah-search-clear-btn:hover{background:#fecaca!important;color:#b91c1c!important;}
-  .rq-surah-search-clear-btn:active{transform:scale(.94)!important;}
+  .rq-surah-search-clear-btn:active{transform:translateY(-50%) scale(.94)!important;}
   .rq-surah-search-clear-btn[hidden]{display:none!important;}
   input.rq-surah-search-clear-input{padding-right:58px!important;box-sizing:border-box!important;}
 </style>
@@ -7381,13 +7381,27 @@
     if(!anchor) return;
     const computed=window.getComputedStyle(anchor);
     if(computed.position==='static') anchor.style.position='relative';
+    // Keep the clear button aligned to the input's right edge and vertical center,
+    // even when the parent also contains autocomplete or other controls.
+    anchor.style.overflow='visible';
+    el.style.boxSizing='border-box';
+    el.style.paddingRight='48px';
     const btn=document.createElement('button');
     btn.type='button'; btn.className='rq-surah-search-clear-btn'; btn.textContent='×';
     btn.setAttribute('aria-label','Hapus teks pencarian nama surat');
     btn.title='Hapus teks pencarian';
     btn.hidden=!String(el.value||'').length;
     anchor.appendChild(btn);
-    const update=()=>{btn.hidden=!String(el.value||'').length;};
+    const positionButton=()=>{
+      const inputTop=el.offsetTop + (el.offsetHeight/2);
+      const inputRight=anchor.clientWidth - (el.offsetLeft + el.offsetWidth);
+      btn.style.top=inputTop+'px';
+      btn.style.right=Math.max(0,inputRight+5)+'px';
+      btn.style.transform='translateY(-50%)';
+    };
+    positionButton();
+    window.addEventListener('resize',positionButton,{passive:true});
+    const update=()=>{btn.hidden=!String(el.value||'').length;positionButton();};
     el.addEventListener('input',update); el.addEventListener('change',update);
     btn.addEventListener('click',()=>{
       el.value='';

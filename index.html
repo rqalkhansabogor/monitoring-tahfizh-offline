@@ -11216,15 +11216,39 @@ html.dark #rqSafetyBackupBox #rqSafetyBackupLocation b{color:#ecfdf5 !important}
   const BUTTON_ID = 'rqFloatingQuickInput';
 
   function openInput() {
-    // Gunakan navigasi dan form Input yang sudah ada; tidak membuat form atau penyimpanan baru.
+    // Gunakan navigasi dan kolom pencarian Input yang sudah ada.
     if (typeof window.switchTab === 'function') {
       window.switchTab('setoran');
-      const section = document.getElementById('section-setoran');
-      if (section) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } else {
       const tab = document.getElementById('btnTab-setoran');
       if (tab) tab.click();
     }
+
+    // Fokus setelah tab Input aktif/render selesai. Beberapa retry diperlukan
+    // karena kartu/tab dapat dirender secara asynchronous.
+    const focusSearch = function () {
+      const input = document.getElementById('santriQuickSearch');
+      if (!input) return false;
+      const section = document.getElementById('section-setoran');
+      if (section) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      try {
+        input.focus({ preventScroll: true });
+        if (typeof input.setSelectionRange === 'function') {
+          const end = input.value.length;
+          input.setSelectionRange(end, end);
+        }
+      } catch (err) {
+        input.focus();
+      }
+      return document.activeElement === input;
+    };
+    requestAnimationFrame(() => {
+      if (!focusSearch()) {
+        setTimeout(() => {
+          if (!focusSearch()) setTimeout(focusSearch, 250);
+        }, 120);
+      }
+    });
   }
 
   function mount() {
@@ -12813,3 +12837,187 @@ html.dark #rqSafetyBackupBox #rqSafetyBackupLocation b{color:#ecfdf5 !important}
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',clean,{once:true});else clean();
 })();
 </script>
+
+<!-- PATCH UI INPUT: tombol lebih besar, jarak Reset/OK Kirim, tanggal di bawah tombol (Bacaan/Hafalan/Muroja'ah). -->
+<style id="rq-input-action-date-below-buttons-v3">
+/* Baris tombol Reset dan OK Kirim: lebih besar, berjauhan, tanggal berada di bawah. */
+.rq-input-action-row{
+  display:flex !important;
+  flex-direction:row !important;
+  flex-wrap:wrap !important;
+  align-items:stretch !important;
+  column-gap:24px !important;
+  row-gap:14px !important;
+  width:100% !important;
+  min-width:0 !important;
+  box-sizing:border-box !important;
+}
+.rq-input-action-row > .rq-input-reset-btn,
+.rq-input-action-row > button[onclick*="saveSectionData"]{
+  order:1 !important;
+  flex:1 1 calc(50% - 12px) !important;
+  width:auto !important;
+  min-width:145px !important;
+  min-height:60px !important;
+  height:auto !important;
+  padding:15px 20px !important;
+  margin:0 !important;
+  font-size:16px !important;
+  line-height:1.35 !important;
+  font-weight:900 !important;
+  white-space:nowrap !important;
+  box-sizing:border-box !important;
+  justify-content:center !important;
+}
+.rq-input-action-row > span[id*="_input_date_"]{
+  order:2 !important;
+  flex:1 0 100% !important;
+  display:block !important;
+  width:100% !important;
+  min-width:0 !important;
+  margin:0 !important;
+  padding-top:2px !important;
+  font-size:15px !important;
+  line-height:1.55 !important;
+  font-weight:800 !important;
+  overflow-wrap:anywhere !important;
+}
+.rq-input-action-row > .rq-input-reset-btn i,
+.rq-input-action-row > button[onclick*="saveSectionData"] i{
+  flex:0 0 auto !important;
+  margin-right:8px !important;
+}
+@media(max-width:767px){
+ .rq-input-action-row{column-gap:14px !important;row-gap:12px !important;}
+ .rq-input-action-row > .rq-input-reset-btn,
+ .rq-input-action-row > button[onclick*="saveSectionData"]{
+   flex:1 1 calc(50% - 7px) !important;
+   min-width:0 !important;
+   min-height:58px !important;
+   padding:14px 10px !important;
+   font-size:15px !important;
+   white-space:normal !important;
+ }
+ .rq-input-action-row > span[id*="_input_date_"]{font-size:14.5px !important;}
+}
+</style>
+
+<!-- PATCH UI INPUT DESKTOP: panel form tidak center dan tetap mengikuti scroll. -->
+<style id="rq-input-desktop-aligned-sticky-v1">
+@media (min-width: 1024px) {
+  /* Panel form Bacaan, Hafalan, dan Muroja'ah: rata atas, bukan mengambang di tengah. */
+  [id^="card_section_bacaan_"],
+  [id^="card_section_hafalan_"],
+  [id^="card_section_murojaah_"] {
+    align-self: flex-start !important;
+    justify-self: stretch !important;
+    margin-top: 0 !important;
+    margin-bottom: 1.25rem !important;
+    position: sticky !important;
+    top: 90px !important;
+    z-index: 25 !important;
+    height: max-content !important;
+    max-height: calc(100vh - 110px) !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain !important;
+  }
+  /* Jangan biarkan wrapper form mengatur posisi ke tengah secara vertikal. */
+  [id^="card_section_bacaan_"],
+  [id^="card_section_hafalan_"],
+  [id^="card_section_murojaah_"] {
+    transform: none !important;
+  }
+}
+</style>
+
+<!-- FIX 2026-11-03: prevent overlapping Bacaan/Hafalan/Murojaah input panels -->
+<style id="rq-input-panel-overlap-fix-20261103">
+@media (min-width: 1024px) {
+  /* Revert sticky behavior on inner input sections: sticky + constrained height/overflow
+     caused adjacent sections to overlap and form fields to be clipped. */
+  [id^="card_section_bacaan_"],
+  [id^="card_section_hafalan_"],
+  [id^="card_section_murojaah_"] {
+    position: relative !important;
+    top: auto !important;
+    align-self: stretch !important;
+    justify-self: stretch !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    overscroll-behavior: auto !important;
+    transform: none !important;
+    z-index: auto !important;
+    margin-top: 0 !important;
+    margin-bottom: 1rem !important;
+  }
+  [id^="card_section_content_bacaan_"],
+  [id^="card_section_content_hafalan_"],
+  [id^="card_section_content_murojaah_"] {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+}
+</style>
+
+<!-- PATCH: floating menu laptop kecil, transparan, menetap di sisi kanan -->
+<style id="rq-floating-menu-right-compact-glass-v1">
+@media (min-width: 768px) {
+  #rqMobileHeaderProLauncher {
+    position: fixed !important;
+    left: auto !important;
+    right: 16px !important;
+    top: 48vh !important;
+    width: 44px !important;
+    height: 44px !important;
+    min-width: 44px !important;
+    min-height: 44px !important;
+    padding: 0 !important;
+    border-radius: 13px !important;
+    background: rgba(6, 95, 70, 0.42) !important;
+    border: 1px solid rgba(167, 243, 208, 0.38) !important;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.13) !important;
+    backdrop-filter: blur(5px) !important;
+    -webkit-backdrop-filter: blur(5px) !important;
+    opacity: 0.72 !important;
+    z-index: 2147483001 !important;
+    transition: opacity .18s ease, background .18s ease, box-shadow .18s ease !important;
+  }
+  #rqMobileHeaderProLauncher:hover,
+  #rqMobileHeaderProLauncher:focus-visible,
+  #rqMobileHeaderProLauncher:active {
+    opacity: 0.96 !important;
+    background: rgba(6, 95, 70, 0.78) !important;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.2) !important;
+  }
+  #rqMobileHeaderProLauncher .rq-pro-icon {
+    font-size: 20px !important;
+    line-height: 1 !important;
+  }
+  #rqMobileHeaderProLauncher .rq-pro-hint { display: none !important; }
+}
+</style>
+
+<!-- PATCH: Nomor File lebih kecil dan transparan -->
+<style id="rq-file-info-compact-transparent-final">
+  #rqFloatingFileVersion{
+    width:78px!important;min-width:78px!important;max-width:calc(100vw - 16px)!important;
+    padding:5px 6px!important;border-radius:8px!important;box-sizing:border-box!important;
+    background:rgba(15,23,42,.48)!important;
+    border:1px solid rgba(203,213,225,.28)!important;
+    box-shadow:0 3px 10px rgba(0,0,0,.12)!important;
+    backdrop-filter:blur(7px)!important;-webkit-backdrop-filter:blur(7px)!important;
+    opacity:.78!important;
+  }
+  #rqFloatingFileVersion:hover,#rqFloatingFileVersion:focus-visible{opacity:.96!important;background:rgba(15,23,42,.68)!important;}
+  #rqFloatingFileVersion.rqfv-compact .rqfv-label{font-size:7px!important;margin:0 0 2px!important;line-height:1.1!important;}
+  #rqFloatingFileVersion.rqfv-compact .rqfv-number{font-size:16px!important;line-height:1.05!important;margin:0!important;letter-spacing:.02em!important;}
+  #rqFloatingFileVersion:not(.rqfv-compact){width:150px!important;min-width:150px!important;padding:7px 8px!important;background:rgba(15,23,42,.62)!important;}
+  #rqFloatingFileVersion:not(.rqfv-compact) .rqfv-number{font-size:18px!important;margin:2px 0 4px!important;}
+  #rqFloatingFileVersion:not(.rqfv-compact) .rqfv-meta{font-size:9px!important;margin-top:3px!important;}
+  @media(max-width:767px){
+    #rqFloatingFileVersion{width:78px!important;min-width:78px!important;padding:5px 6px!important;border-radius:8px!important;}
+    #rqFloatingFileVersion.rqfv-compact .rqfv-number{font-size:16px!important;}
+  }
+</style>

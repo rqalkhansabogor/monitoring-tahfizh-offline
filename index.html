@@ -2493,7 +2493,12 @@
                 return `<p class="text-xs text-slate-400 font-extrabold p-3">Belum ada riwayat ${categoryKey.toLowerCase()} untuk ${santriName}.</p>`;
             }
 
-            return santriHistory.map((h, idx) => `
+            const bulkDeleteButton = santriHistory.length > 1 ? `
+                <div class="flex justify-end pb-1">
+                    <button type="button" onclick="window.deleteAllCardHistoryExceptLatest('${santriName}', '${categoryKey}')" class="px-3 py-2 bg-rose-100 dark:bg-rose-950 text-rose-600 dark:text-rose-300 rounded-xl font-black text-xs hover:bg-rose-200 transition">Hapus Semua Riwayat (Sisakan Terakhir)</button>
+                </div>` : '';
+
+            return bulkDeleteButton + santriHistory.map((h, idx) => `
                 <div class="p-3 bg-slate-50 dark:bg-slate-900 rounded-xl border flex items-center justify-between text-xs gap-3">
                     <div class="flex-1 space-y-1">
                         <div class="font-black text-emerald-800 dark:text-emerald-300 text-xs">${h.detail || '-'}</div>
@@ -2503,6 +2508,66 @@
                     <button type="button" onclick="window.deleteCardHistoryItem('${santriName}', '${categoryKey}', ${idx})" class="px-3.5 py-1.5 bg-rose-100 dark:bg-rose-950 text-rose-600 dark:text-rose-300 rounded-xl font-black text-xs hover:bg-rose-200 transition shrink-0">Hapus</button>
                 </div>
             `).join('');
+        };
+
+        window.deleteAllCardHistoryExceptLatest = async function(santriName, categoryKey) {
+            const storageKeyMap = {
+                'Bacaan': 'rq_history_bacaan',
+                'Hafalan': 'rq_history_hafalan',
+                'Murojaah': 'rq_history_murojaah',
+                'Tugas': 'rq_history_tugas'
+            };
+            const key = storageKeyMap[categoryKey];
+            if (!key) return;
+
+            let list;
+            try { list = JSON.parse(localStorage.getItem(key) || '[]'); }
+            catch (_) { list = []; }
+            if (!Array.isArray(list)) list = [];
+
+            const normName = String(santriName || '').trim().toLowerCase();
+            const matching = list.filter(item => String(item?.name || '').trim().toLowerCase() === normName);
+            if (matching.length <= 1) {
+                window.showToast('Riwayat hanya satu atau belum ada. Tidak ada yang dihapus.', 'info');
+                return;
+            }
+
+            // Prioritaskan timestamp numerik asli saat pencatatan (rawTime),
+            // bukan teks timestamp tampilan atau posisi item dalam array.
+            const getTime = item => {
+                const numericCandidates = [item?.rawTime, item?.createdAt, item?.updatedAt, item?.timestamp];
+                for (const value of numericCandidates) {
+                    if (typeof value === 'number' && Number.isFinite(value)) return value;
+                    if (typeof value === 'string' && value.trim() && /^\d{10,13}$/.test(value.trim())) {
+                        const n = Number(value.trim());
+                        if (Number.isFinite(n)) return value.trim().length === 10 ? n * 1000 : n;
+                    }
+                }
+                const raw = item?.timestamp || item?.date || item?.tanggal || item?.createdAt || '';
+                const parsed = Date.parse(raw);
+                return Number.isFinite(parsed) ? parsed : 0;
+            };
+            // Riwayat dengan waktu paling besar adalah yang paling baru.
+            // Jika waktunya sama, pilih item yang muncul lebih awal pada list (umumnya unshift).
+            let latest = matching[0];
+            let latestTime = getTime(latest);
+            for (let i = 1; i < matching.length; i++) {
+                const candidateTime = getTime(matching[i]);
+                if (candidateTime > latestTime) {
+                    latest = matching[i];
+                    latestTime = candidateTime;
+                }
+            }
+            const nextList = list.filter(item => String(item?.name || '').trim().toLowerCase() !== normName || item === latest);
+            const removedCount = list.length - nextList.length;
+
+            const confirmed = window.confirm(`Hapus ${removedCount} riwayat ${categoryKey} milik ${santriName} dan sisakan 1 riwayat terakhir? Tindakan ini tidak dapat dibatalkan.`);
+            if (!confirmed) return;
+
+            localStorage.setItem(key, JSON.stringify(nextList));
+            window.showToast(`${removedCount} riwayat ${categoryKey} dihapus. 1 riwayat terakhir dipertahankan.`, 'success');
+            if (typeof window.renderSantriCardsAndTable === 'function') window.renderSantriCardsAndTable();
+            if (typeof window.refreshInlineWaReport === 'function') window.refreshInlineWaReport();
         };
 
         window.deleteCardHistoryItem = async function(santriName, categoryKey, localIdx) {

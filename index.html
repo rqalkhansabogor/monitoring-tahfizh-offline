@@ -5881,6 +5881,8 @@
 
         window.exportWebSyncFile = function() {
             try {
+                // PATCH: flush state aktif Kolom Input ke LocalStorage sebelum serialisasi.
+                try{ window.persistFormCache?.(true); }catch(_){}
                 const data={};
                 for(let i=0;i<localStorage.length;i++){
                     const k=localStorage.key(i);
@@ -8926,6 +8928,8 @@ html.dark #rqSafetyBackupBox #rqSafetyBackupLocation b{color:#ecfdf5 !important}
     }catch(e){ if(e?.name!=='AbortError') notify('Pemilihan folder dibatalkan/gagal: '+(e?.message||e),'error'); return null; }
   }
   async function writeSafetyBackupToFolder(reason){
+    // PATCH: pastikan cache Kolom Input selesai ditulis sebelum backup pengaman.
+    try{ window.persistFormCache?.(true); }catch(_){}
     const h=await getSafetyFolder();
     if(!h){
       notify('Backup Pengaman ON, tetapi folder penyimpanan belum siap. Pilih folder pada menu Backup Pengaman terlebih dahulu. Proses dibatalkan demi keamanan.','error');
@@ -9006,6 +9010,8 @@ html.dark #rqSafetyBackupBox #rqSafetyBackupLocation b{color:#ecfdf5 !important}
 
   backupBtn?.addEventListener('click',()=>{
     try{
+      // PATCH: pastikan state Kolom Input tersimpan sinkron sebelum backup dibuat.
+      try{ window.persistFormCache?.(true); }catch(_){}
       const c=collect();
       const payload={
         format:'rq-al-khansa-offline-backup',

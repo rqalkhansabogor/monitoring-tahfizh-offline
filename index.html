@@ -4509,7 +4509,104 @@
             return entry;
         };
 
-        window.exportAllLocalDataToCsv = function() {
+        // BACKUP PORTABEL v2: kumpulkan seluruh IndexedDB aplikasi yang
+        // dapat diserialisasi. Database khusus pengaturan folder pengaman
+        // sengaja dikecualikan karena berisi FileSystemDirectoryHandle
+        // (izin/lokasi folder bersifat khusus perangkat dan tidak dapat dipindah).
+        window.rqCollectPortableIndexedDB = async function() {
+            if (!window.indexedDB || typeof indexedDB.databases !== 'function') {
+                return { supported:false, databases:[], skipped:['Browser tidak mendukung IndexedDB.databases(); data IndexedDB tidak dapat diaudit otomatis.'] };
+            }
+            const excluded = new Set(['rq-al-khansa-safety-settings']);
+            const dbInfos = await indexedDB.databases();
+            const databases = [], skipped = [];
+            const reqPromise = req => new Promise((resolve,reject)=>{req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error||new Error('Permintaan IndexedDB gagal.'));});
+            for (const info of dbInfos || []) {
+                const name = String(info?.name || '');
+                if (!name || excluded.has(name)) { if(name) skipped.push(name+': berisi handle folder/izin khusus perangkat.'); continue; }
+                let db;
+                try {
+                    db = await reqPromise(indexedDB.open(name));
+                    const stores=[];
+                    for (const storeName of Array.from(db.objectStoreNames)) {
+                        const tx=db.transaction(storeName,'readonly'), store=tx.objectStore(storeName);
+                        const keysReq=store.getAllKeys(), valuesReq=store.getAll();
+                        const [keys,values]=await Promise.all([reqPromise(keysReq),reqPromise(valuesReq)]);
+                        const indexes=[];
+                        for(const indexName of Array.from(store.indexNames)){
+                            const ix=store.index(indexName);
+                            indexes.push({name:ix.name,keyPath:ix.keyPath,unique:ix.unique,multiEntry:ix.multiEntry});
+                        }
+                        stores.push({name:storeName,keyPath:store.keyPath,autoIncrement:store.autoIncrement,indexes,records:values.map((value,i)=>({key:keys[i],value}))});
+                    }
+                    databases.push({name,version:db.version,stores});
+                } catch(e) { skipped.push(name+': '+String(e?.message||e)); }
+                finally { try{db?.close();}catch(_){} }
+            }
+            return {supported:true,databases,skipped};
+        };
+
+        window.rqRestorePortableIndexedDB = async function(payload, mode='replace') {
+            if (!payload || !Array.isArray(payload.databases)) return {restored:0,skipped:['Tidak ada paket IndexedDB pada file.']};
+            if (!window.indexedDB) throw new Error('IndexedDB tidak tersedia pada perangkat ini.');
+            const restored=[], skipped=[];
+            const reqPromise = req => new Promise((resolve,reject)=>{req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error||new Error('Permintaan IndexedDB gagal.'));});
+            for (const spec of payload.databases) {
+                if (!spec?.name || spec.name==='rq-al-khansa-safety-settings') { skipped.push(String(spec?.name||'database tidak dikenal')+': database khusus perangkat dilewati.'); continue; }
+                let db;
+                try {
+                    db=await reqPromise(indexedDB.open(spec.name));
+                    const missing=(spec.stores||[]).filter(st=>!db.objectStoreNames.contains(st.name));
+                    if(missing.length){
+                        const nextVersion=db.version+1; db.close(); db=null;
+                        db=await new Promise((resolve,reject)=>{
+                            const req=indexedDB.open(spec.name,nextVersion);
+                            req.onupgradeneeded=()=>{
+                                const d=req.result;
+                                for(const st of missing){
+                                    try{
+                                        const options={autoIncrement:!!st.autoIncrement};
+                                        if(st.keyPath!==null && st.keyPath!==undefined) options.keyPath=st.keyPath;
+                                        const os=d.createObjectStore(st.name,options);
+                                        for(const ix of st.indexes||[]){try{os.createIndex(ix.name,ix.keyPath,{unique:!!ix.unique,multiEntry:!!ix.multiEntry});}catch(_){}}
+                                    }catch(_){}
+                                }
+                            };
+                            req.onsuccess=()=>resolve(req.result);
+                            req.onerror=()=>reject(req.error||new Error('Gagal membuat object store.'));
+                        });
+                    }
+                    for(const st of spec.stores||[]){
+                        if(!db.objectStoreNames.contains(st.name)){skipped.push(spec.name+'/'+st.name+': object store tidak dapat dibuat.');continue;}
+                        await new Promise((resolve,reject)=>{
+                            const tx=db.transaction(st.name,'readwrite'),os=tx.objectStore(st.name);
+                            if(mode==='replace') os.clear();
+                            for(const rec of st.records||[]){
+                                if(mode==='replace'){
+                                    if(os.keyPath!==null) os.put(rec.value); else os.put(rec.value,rec.key);
+                                }else{
+                                    // Mode GABUNGKAN tidak menimpa record yang sudah ada.
+                                    // Record dengan primary key baru ditambahkan; konflik dilaporkan/dilewati.
+                                    const getReq=os.get(rec.key);
+                                    getReq.onsuccess=()=>{
+                                        if(getReq.result!==undefined) return;
+                                        try{if(os.keyPath!==null) os.add(rec.value); else os.add(rec.value,rec.key);}catch(_){}
+                                    };
+                                }
+                            }
+                            tx.oncomplete=resolve;
+                            tx.onerror=()=>reject(tx.error||new Error('Gagal menulis '+st.name));
+                            tx.onabort=()=>reject(tx.error||new Error('Transaksi dibatalkan '+st.name));
+                        });
+                    }
+                    restored.push(spec.name);
+                } catch(e){skipped.push(spec.name+': '+String(e?.message||e));}
+                finally{try{db?.close();}catch(_){}}
+            }
+            return {restored:restored.length,databases:restored,skipped};
+        };
+
+        window.exportAllLocalDataToCsv = async function() {
             try {
                 const operator = window.rqGetVersionOperator();
                 if (!operator) {
@@ -4521,16 +4618,18 @@
                     localStorage.setItem('rq_import_operator_name', val);
                 }
                 // Ambil snapshot terbaru dari form yang sedang tampil sebelum membuat backup.
-                // Ini melengkapi rq_form_input_state_v1 tanpa menghapus kunci lama.
+                // Jalankan penyimpanan cache resmi terlebih dahulu, lalu lengkapi field yang sedang aktif.
+                try { await Promise.resolve(window.persistFormCache?.(true)); } catch (cacheError) { console.warn('persistFormCache sebelum backup:',cacheError); }
                 try {
                     const cache = (window.localFormCache && typeof window.localFormCache === 'object')
                         ? window.localFormCache : {};
-                    document.querySelectorAll('input[id], select[id], textarea[id]').forEach(el => {
+                    document.querySelectorAll('input[id], select[id], textarea[id], [contenteditable="true"][id]').forEach(el => {
                         if (!el.id) return;
                         if (el.type === 'file' || el.type === 'button' || el.type === 'submit') return;
-                        const value = el.type === 'checkbox' || el.type === 'radio'
-                            ? (el.checked ? (el.value || '1') : '')
-                            : String(el.value ?? '');
+                        const value = el.isContentEditable ? String(el.innerHTML ?? el.textContent ?? '')
+                            : (el.type === 'checkbox' || el.type === 'radio'
+                                ? (el.checked ? (el.value || '1') : '')
+                                : String(el.value ?? ''));
                         cache[el.id] = value;
                     });
                     window.localFormCache = cache;
@@ -4554,10 +4653,16 @@
                 const device = window.rqGetVersionDevice();
                 const deviceName = window.rqGetVersionDeviceName() || device;
                 const createdBy = window.rqGetVersionOperator();
+                window.showToast?.('Mengumpulkan LocalStorage dan IndexedDB untuk backup...', 'info');
+                const indexedDbBackup = await window.rqCollectPortableIndexedDB();
                 const rows = [
                     ['Type', 'Key', 'Value'],
                     ['meta', 'format', 'rq-al-khansa-local-csv'],
-                    ['meta', 'version', '1'],
+                    ['meta', 'version', '2'],
+                    ['meta', 'backupScope', 'localStorage+indexedDB'],
+                    ['meta', 'indexedDbSupported', String(!!indexedDbBackup.supported)],
+                    ['meta', 'indexedDbDatabaseCount', String(indexedDbBackup.databases.length)],
+                    ['meta', 'indexedDbSkipped', JSON.stringify(indexedDbBackup.skipped)],
                     ['meta', 'exportedAt', now.toISOString()],
                     ['meta', 'fileId', '__FILE_ID__'],
                     ['meta', 'fileNumber', '__FILE_NUMBER__'],
@@ -4585,6 +4690,10 @@
                     if (!key || !key.startsWith('rq_')) continue;
                     rows.push(['localStorage', key, localStorage.getItem(key) ?? '']);
                 }
+                // Satu baris per database; isi store, key, skema dan record ikut tersimpan.
+                for (const dbSpec of indexedDbBackup.databases) {
+                    rows.push(['indexedDB', dbSpec.name, JSON.stringify(dbSpec)]);
+                }
 
                 const esc = value => `"${String(value ?? '').replace(/"/g, '""')}"`;
                 const csv = '\uFEFF' + rows.map(row => row.map(esc).join(',')).join('\r\n') + '\r\n';
@@ -4599,8 +4708,10 @@
                 if (requestedFileName === null) { URL.revokeObjectURL(url); return; }
                 const fileNumber = window.rqGetNextFileNumber();
                 const fileId = window.rqFormatFileNumber(fileNumber);
-                rows[4][2] = fileId;
-                rows[5][2] = String(fileNumber);
+                const fileIdRow = rows.find(row => row[0] === 'meta' && row[1] === 'fileId');
+                const fileNumberRow = rows.find(row => row[0] === 'meta' && row[1] === 'fileNumber');
+                if (fileIdRow) fileIdRow[2] = fileId;
+                if (fileNumberRow) fileNumberRow[2] = String(fileNumber);
                 const csvFinal = '\uFEFF' + rows.map(row => row.map(esc).join(',')).join('\r\n') + '\r\n';
                 const finalBlob = new Blob([csvFinal], { type: 'text/csv;charset=utf-8;' });
                 URL.revokeObjectURL(url);
@@ -4997,6 +5108,7 @@
                 if (!parsed) {
                     const imported = {};
                     let importedSantri = null;
+                    const importedIndexedDb = [];
                     let formatOk = false, version = '', rowCount = 0;
                     const sourceMeta = {};
                     const keepDeviceLocal = mode !== 'merge';
@@ -5006,7 +5118,7 @@
                         const value = String(row[2] ?? '');
                         if (type === 'meta' && key === 'format') formatOk = value === 'rq-al-khansa-local-csv';
                         else if (type === 'meta' && key === 'version') version = value;
-                        else if (type === 'meta' && window.rqVersionMetaKeys.includes(key)) sourceMeta[key] = value;
+                        else if (type === 'meta' && (window.rqVersionMetaKeys.includes(key) || ['backupScope','indexedDbSupported','indexedDbDatabaseCount','indexedDbSkipped'].includes(key))) sourceMeta[key] = value;
                         else if (type === 'localStorage' && key.startsWith('rq_')) {
                             // Pada GABUNGKAN, data lokal perangkat tidak pernah perlu
                             // masuk ke memori dan tidak pernah ditulis ke perangkat lain.
@@ -5014,14 +5126,16 @@
                             imported[key] = value;
                         } else if (type === 'santriList' && key === '__santriList') {
                             try { importedSantri = JSON.parse(value); } catch (_) { throw new Error('Data master santri di CSV rusak.'); }
+                        } else if (type === 'indexedDB') {
+                            try { importedIndexedDb.push(JSON.parse(value)); } catch (_) { throw new Error('Data IndexedDB dalam CSV rusak: '+key); }
                         }
                     }, {onProgress:(done,total)=>{ if (typeof window.rqSetOfflineImportProgress === 'function') window.rqSetOfflineImportProgress(done,total); }});
-                    parsed = {file, mode:mode === 'merge' ? 'merge' : 'replace', imported, importedSantri, formatOk, version, sourceMeta, rowCount};
+                    parsed = {file, mode:mode === 'merge' ? 'merge' : 'replace', imported, importedSantri, importedIndexedDb, formatOk, version, sourceMeta, rowCount};
                 }
 
-                const { imported, importedSantri, sourceMeta } = parsed;
-                if (!parsed.formatOk || parsed.version !== '1') throw new Error('CSV bukan file data offline RQ Al-Khansa atau versinya tidak didukung.');
-                if (!Object.keys(imported).length && !Array.isArray(importedSantri)) throw new Error('CSV tidak berisi data aplikasi.');
+                const { imported, importedSantri, importedIndexedDb = [], sourceMeta } = parsed;
+                if (!parsed.formatOk || !['1','2'].includes(String(parsed.version))) throw new Error('CSV bukan file data offline RQ Al-Khansa atau versinya tidak didukung.');
+                if (!Object.keys(imported).length && !Array.isArray(importedSantri) && !importedIndexedDb.length) throw new Error('CSV tidak berisi data aplikasi.');
                 if (Array.isArray(importedSantri) && importedSantri.some(x => !x || typeof x !== 'object' || Array.isArray(x))) throw new Error('Data Master Santri dalam CSV tidak valid.');
 
                 const modeLabel = mode === 'merge' ? 'GABUNGKAN' : 'GANTI';
@@ -5064,11 +5178,17 @@
                     }
                 }
 
+                let indexedDbResult={restored:0,databases:[],skipped:[]};
+                if(importedIndexedDb.length){
+                    indexedDbResult=await window.rqRestorePortableIndexedDB({databases:importedIndexedDb},mode);
+                    if(indexedDbResult.skipped?.length) console.warn('Sebagian IndexedDB tidak dipulihkan:',indexedDbResult.skipped);
+                }
+
                 const targetAfter=parseJson(readLocal('rq_target_hafalan_murojaah_v2'))||{};
                 const targetAfterH=targetAfter?.hafalan&&typeof targetAfter.hafalan==='object'?Object.keys(targetAfter.hafalan).length:0;
                 const targetAfterM=targetAfter?.murojaah&&typeof targetAfter.murojaah==='object'?Object.keys(targetAfter.murojaah).length:0;
                 const resultBox=document.getElementById('rqOfflineCsvImportStatus');
-                if(resultBox){resultBox.className='mt-3 rounded-xl border-2 border-emerald-300 bg-emerald-50 dark:bg-slate-900/70 dark:border-emerald-800 p-4';resultBox.innerHTML=`<div class="flex items-center gap-2 font-black text-emerald-700 dark:text-emerald-300"><i class="fa-solid fa-circle-check"></i> Import berhasil</div><div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3 text-xs"><div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5"><b>Mode:</b><br>${mode==='merge'?'Gabungkan Antar-Perangkat':'Ganti'}</div><div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5"><b>File:</b><br>${String(file.name).replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]))}</div><div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5"><b>Kunci data:</b><br>${jumlah}</div><div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5"><b>Master santri dari file:</b><br>${Array.isArray(importedSantri)?importedSantri.length:0}</div><div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5"><b>Target Hafalan:</b><br>${targetAfterH} santri</div><div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5"><b>Target Muroja’ah:</b><br>${targetAfterM} santri</div></div><div class="mt-3 text-xs font-black text-emerald-700 dark:text-emerald-300">✓ Data perangkat sekarang dipertahankan dan data dari file digabungkan.</div><div class="mt-2 text-xs font-bold text-slate-600 dark:text-slate-400">Aplikasi akan dimuat ulang sebentar lagi.</div>`;}
+                if(resultBox){resultBox.className='mt-3 rounded-xl border-2 border-emerald-300 bg-emerald-50 dark:bg-slate-900/70 dark:border-emerald-800 p-4';resultBox.innerHTML=`<div class="flex items-center gap-2 font-black text-emerald-700 dark:text-emerald-300"><i class="fa-solid fa-circle-check"></i> Import berhasil</div><div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3 text-xs"><div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5"><b>Mode:</b><br>${mode==='merge'?'Gabungkan Antar-Perangkat':'Ganti'}</div><div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5"><b>File:</b><br>${String(file.name).replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]))}</div><div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5"><b>Kunci data:</b><br>${jumlah}</div><div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5"><b>Master santri dari file:</b><br>${Array.isArray(importedSantri)?importedSantri.length:0}</div><div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5"><b>Target Hafalan:</b><br>${targetAfterH} santri</div><div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5"><b>Target Muroja’ah:</b><br>${targetAfterM} santri</div><div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5"><b>IndexedDB dipulihkan:</b><br>${indexedDbResult.restored} database</div></div>${indexedDbResult.skipped?.length?`<div class="mt-2 text-xs font-bold text-amber-700 dark:text-amber-300">Catatan IndexedDB: ${indexedDbResult.skipped.map(x=>String(x).replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]))).join(' · ')}</div>`:''}${sourceMeta.indexedDbSkipped?`<div class="mt-2 text-xs font-bold text-amber-700 dark:text-amber-300">Catatan dari file backup: ${String(sourceMeta.indexedDbSkipped).replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]))}</div>`:''}<div class="mt-3 text-xs font-black text-emerald-700 dark:text-emerald-300">✓ Data aplikasi diproses sesuai mode ${mode==='merge'?'Gabungkan':'Ganti'}.</div><div class="mt-2 text-xs font-bold text-slate-600 dark:text-slate-400">Aplikasi akan dimuat ulang sebentar lagi.</div>`;}
                 try { window.hydrateInputFormsFromHistory?.(true); window.persistFormCache?.(true); window.generateWaReport?.(); window.updateInlineLiveReportTabButtons?.(); window.rqMarkImportRefreshPending?.(); } catch(e){ console.warn('Refresh tampilan setelah Import CSV:',e); }
                 try {
                     const afterStorage={};
@@ -5385,22 +5505,24 @@
             try{
                 const mode=window.rqPendingCsvImportMode==='merge'?'merge':'replace';
                 const deviceLocalOnlyKeys=window.rqOfflineDeviceLocalOnlyKeys||new Set();
-                const imported={}, sourceMeta={}; let importedSantri=null, targetInfo=null, formatOk=false, version='', rowCount=0;
+                const imported={}, sourceMeta={}; const importedIndexedDb=[]; let importedSantri=null, targetInfo=null, formatOk=false, version='', rowCount=0;
                 rowCount=await window.rqReadOfflineCsvStream(file, async row=>{
                     const type=String(row[0]??'').trim(), key=String(row[1]??'').trim(), value=String(row[2]??'');
                     if(type==='meta'&&key==='format') formatOk=value==='rq-al-khansa-local-csv';
                     else if(type==='meta'&&key==='version') version=value;
-                    else if(type==='meta'&&window.rqVersionMetaKeys.includes(key)) sourceMeta[key]=value;
+                    else if(type==='meta'&&(window.rqVersionMetaKeys.includes(key)||['backupScope','indexedDbSupported','indexedDbDatabaseCount','indexedDbSkipped'].includes(key))) sourceMeta[key]=value;
                     else if(type==='localStorage'&&key.startsWith('rq_')){
                         if(mode==='merge'&&deviceLocalOnlyKeys.has(key)) return;
                         imported[key]=value;
                         if(key==='rq_target_hafalan_murojaah_v2'){try{targetInfo=JSON.parse(value);}catch(_) {}}
                     } else if(type==='santriList'&&key==='__santriList'){
                         try{importedSantri=JSON.parse(value);}catch(_){throw new Error('Data master santri di CSV rusak.');}
+                    } else if(type==='indexedDB'){
+                        try{importedIndexedDb.push(JSON.parse(value));}catch(_){throw new Error('Data IndexedDB dalam CSV rusak: '+key);}
                     }
                 },{onProgress:(done,total)=>{if(box&&total){const pct=Math.min(100,Math.round(done/total*100)); const msg=box.querySelector('[data-rq-csv-progress]'); if(msg) msg.textContent=`Membaca CSV bertahap… ${pct}%`;}}});
                 if(!formatOk||!version) throw new Error('CSV bukan file data offline RQ Al-Khansa.');
-                if(!Object.keys(imported).length&&!Array.isArray(importedSantri)) throw new Error('CSV tidak berisi data aplikasi.');
+                if(!Object.keys(imported).length&&!Array.isArray(importedSantri)&&!importedIndexedDb.length) throw new Error('CSV tidak berisi data aplikasi.');
                 const targetH=targetInfo?.hafalan&&typeof targetInfo.hafalan==='object'?Object.keys(targetInfo.hafalan).length:0;
                 const targetM=targetInfo?.murojaah&&typeof targetInfo.murojaah==='object'?Object.keys(targetInfo.murojaah).length:0;
                 let targetValidation={present:!!targetInfo,valid:true,hafalan:targetH,murojaah:targetM,errors:[]};
@@ -5408,10 +5530,10 @@
                     for(const type of ['hafalan','murojaah']){const bucket=targetInfo[type];if(bucket!=null&&typeof bucket!=='object'){targetValidation.valid=false;targetValidation.errors.push(`${type} bukan struktur objek`);continue;}if(bucket&&typeof bucket==='object'){for(const name of Object.keys(bucket)){const entry=bucket[name];if(entry!=null&&typeof entry!=='object'){targetValidation.valid=false;targetValidation.errors.push(`${type}: data target ${name} tidak valid`);break;}if(type==='hafalan'&&entry&&entry.jangkaPendek&&entry.akanDatang&&entry.jangkaPendek===entry.akanDatang){targetValidation.valid=false;targetValidation.errors.push(`${name}: jangka pendek dan akan datang sama`);}}}}
                 }
                 if(!targetValidation.valid) throw new Error('Struktur Target dalam CSV tidak valid: '+targetValidation.errors.slice(0,3).join('; '));
-                window.rqPendingCsvParsed={file,mode,imported,importedSantri,sourceMeta,formatOk,version,rowCount};
+                window.rqPendingCsvParsed={file,mode,imported,importedSantri,importedIndexedDb,sourceMeta,formatOk,version,rowCount};
                 const modeText=mode==='merge'?'GABUNGKAN':'GANTI', detailedReport=document.getElementById('rqOfflineCsvImportDetailedReport');
                 if(detailedReport){detailedReport.className='mt-3 rounded-2xl border-2 border-indigo-200 dark:border-indigo-800 bg-white dark:bg-slate-900 p-4';detailedReport.innerHTML='<div class="font-black text-sm text-indigo-800 dark:text-indigo-300 mb-3"><i class="fa-solid fa-clipboard-list mr-1"></i> HASIL PEMBACAAN & PEMBANDINGAN FILE</div>'+window.buildImportDetailedReport(mode,imported,importedSantri,targetInfo);}
-                if(box){box.className='mt-3 rounded-xl border-2 border-emerald-300 bg-emerald-50 dark:bg-slate-900/70 dark:border-emerald-800 p-4';box.innerHTML=`<div class="flex items-center gap-2 font-black text-emerald-700 dark:text-emerald-300"><i class="fa-solid fa-circle-check"></i> File berhasil dibaca</div><div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3 text-xs"><div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5"><b>Nama file:</b><br>${String(file.name).replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]))}</div><div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5"><b>Ukuran:</b><br>${(file.size/1024).toFixed(1)} KB</div><div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5"><b>Baris data:</b><br>${Math.max(0,rowCount-1)}</div><div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5"><b>Kunci aplikasi:</b><br>${Object.keys(imported).length}</div><div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5"><b>Master santri:</b><br>${Array.isArray(importedSantri)?importedSantri.length+' santri':'Tidak ada'}</div><div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5"><b>Target hafalan / murojaah:</b><br>${targetH} / ${targetM} santri</div><div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5 sm:col-span-2 border-2 border-indigo-200 dark:border-indigo-800"><b>Identitas Versi:</b><br>${sourceMeta.fileId?`<b>${String(sourceMeta.fileId)}</b> · Dibuat oleh ${String(sourceMeta.createdBy||'-').replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]))} · ${String(sourceMeta.createdDevice||'-')} · ${String(sourceMeta.createdAtWib||sourceMeta.createdAt||'-')}`:'File lama — metadata Versi belum tersedia'}</div><div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5 sm:col-span-2"><b>Validasi Target:</b><br><span class="text-emerald-700 dark:text-emerald-300">✓ Struktur Target valid</span> · Jangka Pendek & Yang Akan Datang diperiksa terpisah</div></div><div class="mt-3 text-xs font-black text-slate-700 dark:text-slate-300">File valid untuk proses <span class="text-violet-700 dark:text-violet-300">${modeText}</span>.</div>`;}
+                if(box){box.className='mt-3 rounded-xl border-2 border-emerald-300 bg-emerald-50 dark:bg-slate-900/70 dark:border-emerald-800 p-4';box.innerHTML=`<div class="flex items-center gap-2 font-black text-emerald-700 dark:text-emerald-300"><i class="fa-solid fa-circle-check"></i> File berhasil dibaca</div><div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3 text-xs"><div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5"><b>Nama file:</b><br>${String(file.name).replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]))}</div><div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5"><b>Ukuran:</b><br>${(file.size/1024).toFixed(1)} KB</div><div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5"><b>Baris data:</b><br>${Math.max(0,rowCount-1)}</div><div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5"><b>Kunci aplikasi:</b><br>${Object.keys(imported).length}</div><div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5"><b>Database IndexedDB:</b><br>${importedIndexedDb.length} database</div><div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5"><b>Master santri:</b><br>${Array.isArray(importedSantri)?importedSantri.length+' santri':'Tidak ada'}</div><div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5"><b>Target hafalan / murojaah:</b><br>${targetH} / ${targetM} santri</div><div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5 sm:col-span-2 border-2 border-indigo-200 dark:border-indigo-800"><b>Identitas Versi:</b><br>${sourceMeta.fileId?`<b>${String(sourceMeta.fileId)}</b> · Dibuat oleh ${String(sourceMeta.createdBy||'-').replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]))} · ${String(sourceMeta.createdDevice||'-')} · ${String(sourceMeta.createdAtWib||sourceMeta.createdAt||'-')}`:'File lama — metadata Versi belum tersedia'}</div><div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5 sm:col-span-2"><b>Validasi Target:</b><br><span class="text-emerald-700 dark:text-emerald-300">✓ Struktur Target valid</span> · Jangka Pendek & Yang Akan Datang diperiksa terpisah</div></div><div class="mt-3 text-xs font-black text-slate-700 dark:text-slate-300">File valid untuk proses <span class="text-violet-700 dark:text-violet-300">${modeText}</span>.</div>`;}
                 if(action){action.className='mt-3 flex flex-col sm:flex-row gap-2';action.innerHTML=`<button type="button" onclick="window.confirmOfflineCsvImport()" class="flex-1 px-4 py-3 bg-${mode==='merge'?'amber':'violet'}-600 hover:bg-${mode==='merge'?'amber':'violet'}-700 text-white rounded-xl font-black text-sm shadow-md"><i class="fa-solid fa-${mode==='merge'?'code-merge':'right-to-bracket'}"></i> Ya, ${modeText}</button><button type="button" onclick="window.resetOfflineCsvImport()" class="px-4 py-3 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl font-black text-sm"><i class="fa-solid fa-xmark"></i> Batal / Pilih File Lain</button>`;}
                 if(mode==='replace') window.rqShowOfflineCsvConfirmModal();
             }catch(e){window.rqCloseOfflineCsvConfirmModal?.();window.rqPendingCsvFile=null;window.rqPendingCsvParsed=null;if(box){box.className='mt-3 rounded-xl border-2 border-rose-300 bg-rose-50 dark:bg-slate-900/70 dark:border-rose-800 p-4';box.innerHTML=`<div class="flex items-center gap-2 font-black text-rose-700 dark:text-rose-300"><i class="fa-solid fa-circle-xmark"></i> File gagal dibaca</div><div class="text-xs font-bold text-rose-700 dark:text-rose-300 mt-1">${String(e?.message||e).replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]))}</div>`;}if(action)action.classList.add('hidden');}

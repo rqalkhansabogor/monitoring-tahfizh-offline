@@ -4509,89 +4509,189 @@
             return entry;
         };
 
-        // BACKUP PORTABEL v2: kumpulkan seluruh IndexedDB aplikasi yang
-        // dapat diserialisasi. Database khusus pengaturan folder pengaman
-        // sengaja dikecualikan karena berisi FileSystemDirectoryHandle
-        // (izin/lokasi folder bersifat khusus perangkat dan tidak dapat dipindah).
+        // BACKUP PORTABEL v3: serialisasi lintas perangkat untuk IndexedDB.
+        // Database pengaturan folder pengaman dikecualikan karena menyimpan
+        // FileSystemDirectoryHandle/izin yang memang terikat pada perangkat.
+        window.rqEncodePortableValue = async function(value, seen = new WeakSet()) {
+            if (value === undefined) return { __rqPortableType:'Undefined' };
+            if (typeof value === 'bigint') return { __rqPortableType:'BigInt', value:String(value) };
+            if (value === null || typeof value !== 'object') return value;
+            if (value instanceof Date) return { __rqPortableType:'Date', value:value.toISOString() };
+            if (typeof File !== 'undefined' && value instanceof File) {
+                const bytes=new Uint8Array(await value.arrayBuffer()); let binary='';
+                for(let i=0;i<bytes.length;i+=0x8000) binary+=String.fromCharCode(...bytes.subarray(i,Math.min(i+0x8000,bytes.length)));
+                return {__rqPortableType:'File',name:value.name,mime:value.type||'',lastModified:value.lastModified,data:btoa(binary)};
+            }
+            if (typeof Blob !== 'undefined' && value instanceof Blob) {
+                const bytes = new Uint8Array(await value.arrayBuffer());
+                let binary = '';
+                const step = 0x8000;
+                for (let i=0; i<bytes.length; i+=step) binary += String.fromCharCode(...bytes.subarray(i, Math.min(i+step,bytes.length)));
+                return { __rqPortableType:'Blob', mime:value.type || '', data:btoa(binary) };
+            }
+            if (value instanceof ArrayBuffer) {
+                const bytes=new Uint8Array(value); let binary='';
+                for(let i=0;i<bytes.length;i+=0x8000) binary+=String.fromCharCode(...bytes.subarray(i,Math.min(i+0x8000,bytes.length)));
+                return { __rqPortableType:'ArrayBuffer', data:btoa(binary) };
+            }
+            if (ArrayBuffer.isView(value)) {
+                const bytes=new Uint8Array(value.buffer,value.byteOffset,value.byteLength); let binary='';
+                for(let i=0;i<bytes.length;i+=0x8000) binary+=String.fromCharCode(...bytes.subarray(i,Math.min(i+0x8000,bytes.length)));
+                return { __rqPortableType:value instanceof DataView?'DataView':'TypedArray', name:value.constructor?.name || 'Uint8Array', data:btoa(binary) };
+            }
+            if (value instanceof Map) {
+                if(seen.has(value)) throw new Error('Data IndexedDB memiliki referensi melingkar yang belum didukung backup.');
+                seen.add(value); const entries=[];
+                for(const [k,v] of value.entries()) entries.push([await window.rqEncodePortableValue(k,seen),await window.rqEncodePortableValue(v,seen)]);
+                seen.delete(value); return {__rqPortableType:'Map',entries};
+            }
+            if (value instanceof Set) {
+                if(seen.has(value)) throw new Error('Data IndexedDB memiliki referensi melingkar yang belum didukung backup.');
+                seen.add(value); const values=[]; for(const v of value) values.push(await window.rqEncodePortableValue(v,seen));
+                seen.delete(value); return {__rqPortableType:'Set',values};
+            }
+            if (seen.has(value)) throw new Error('Data IndexedDB memiliki referensi melingkar yang belum didukung backup.');
+            seen.add(value);
+            const proto=Object.getPrototypeOf(value);
+            if(!Array.isArray(value) && proto!==Object.prototype && proto!==null) { seen.delete(value); throw new Error('Tipe data IndexedDB '+(value.constructor?.name||'tidak dikenal')+' belum didukung backup portabel.'); }
+            let out;
+            if(Array.isArray(value)) { out=[]; for(const item of value) out.push(await window.rqEncodePortableValue(item,seen)); }
+            else {
+                out={};
+                for(const key of Object.keys(value)) out[key]=await window.rqEncodePortableValue(value[key],seen);
+            }
+            seen.delete(value); return out;
+        };
+        window.rqDecodePortableValue = async function(value) {
+            if(value===null || typeof value!=='object') return value;
+            if(Array.isArray(value)) { const out=[]; for(const x of value) out.push(await window.rqDecodePortableValue(x)); return out; }
+            const type=value.__rqPortableType;
+            if(type==='Undefined') return undefined;
+            if(type==='BigInt') return BigInt(value.value);
+            if(type==='Date') return new Date(value.value);
+            if(type==='Blob' || type==='File' || type==='ArrayBuffer' || type==='TypedArray' || type==='DataView') {
+                const binary=atob(value.data||''), bytes=new Uint8Array(binary.length);
+                for(let i=0;i<binary.length;i++) bytes[i]=binary.charCodeAt(i);
+                if(type==='Blob') return new Blob([bytes],{type:value.mime||''});
+                if(type==='File') return new File([bytes],value.name||'backup-file',{type:value.mime||'',lastModified:Number(value.lastModified)||Date.now()});
+                if(type==='ArrayBuffer') return bytes.buffer;
+                if(type==='DataView') return new DataView(bytes.buffer.slice(0));
+                const constructors={Int8Array,Uint8Array,Uint8ClampedArray,Int16Array,Uint16Array,Int32Array,Uint32Array,Float32Array,Float64Array,BigInt64Array,BigUint64Array};
+                const C=constructors[value.name] || Uint8Array;
+                return new C(bytes.buffer.slice(0));
+            }
+            if(type==='Map') { const m=new Map(); for(const pair of value.entries||[]) m.set(await window.rqDecodePortableValue(pair[0]),await window.rqDecodePortableValue(pair[1])); return m; }
+            if(type==='Set') { const st=new Set(); for(const x of value.values||[]) st.add(await window.rqDecodePortableValue(x)); return st; }
+            const out={}; for(const [k,v] of Object.entries(value)) out[k]=await window.rqDecodePortableValue(v); return out;
+        };
+
         window.rqCollectPortableIndexedDB = async function() {
             if (!window.indexedDB || typeof indexedDB.databases !== 'function') {
-                return { supported:false, databases:[], skipped:['Browser tidak mendukung IndexedDB.databases(); data IndexedDB tidak dapat diaudit otomatis.'] };
+                throw new Error('Browser ini tidak mendukung audit daftar IndexedDB. Backup dihentikan agar tidak menghasilkan file yang diklaim lengkap tetapi mungkin kehilangan database. Gunakan Chrome/Edge versi terbaru.');
             }
             const excluded = new Set(['rq-al-khansa-safety-settings']);
-            const dbInfos = await indexedDB.databases();
-            const databases = [], skipped = [];
-            const reqPromise = req => new Promise((resolve,reject)=>{req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error||new Error('Permintaan IndexedDB gagal.'));});
-            for (const info of dbInfos || []) {
-                const name = String(info?.name || '');
-                if (!name || excluded.has(name)) { if(name) skipped.push(name+': berisi handle folder/izin khusus perangkat.'); continue; }
+            let dbInfos;
+            try { dbInfos=await indexedDB.databases(); }
+            catch(e) { throw new Error('Daftar database IndexedDB tidak dapat dibaca: '+String(e?.message||e)); }
+            const databases=[], skipped=[];
+            const reqPromise=req=>new Promise((resolve,reject)=>{req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error||new Error('Permintaan IndexedDB gagal.'));});
+            for(const info of dbInfos||[]) {
+                const name=String(info?.name||'');
+                if(!name) continue;
+                if(excluded.has(name)) { skipped.push(name+': pengaturan izin/folder khusus perangkat, tidak dapat dipindahkan.'); continue; }
                 let db;
                 try {
-                    db = await reqPromise(indexedDB.open(name));
+                    db=await reqPromise(indexedDB.open(name));
                     const stores=[];
-                    for (const storeName of Array.from(db.objectStoreNames)) {
+                    for(const storeName of Array.from(db.objectStoreNames)) {
                         const tx=db.transaction(storeName,'readonly'), store=tx.objectStore(storeName);
-                        const keysReq=store.getAllKeys(), valuesReq=store.getAll();
-                        const [keys,values]=await Promise.all([reqPromise(keysReq),reqPromise(valuesReq)]);
+                        const [keys,values]=await Promise.all([reqPromise(store.getAllKeys()),reqPromise(store.getAll())]);
                         const indexes=[];
-                        for(const indexName of Array.from(store.indexNames)){
-                            const ix=store.index(indexName);
-                            indexes.push({name:ix.name,keyPath:ix.keyPath,unique:ix.unique,multiEntry:ix.multiEntry});
-                        }
-                        stores.push({name:storeName,keyPath:store.keyPath,autoIncrement:store.autoIncrement,indexes,records:values.map((value,i)=>({key:keys[i],value}))});
+                        for(const indexName of Array.from(store.indexNames)) { const ix=store.index(indexName); indexes.push({name:ix.name,keyPath:ix.keyPath,unique:ix.unique,multiEntry:ix.multiEntry}); }
+                        const records=[];
+                        for(let i=0;i<values.length;i++) records.push({key:await window.rqEncodePortableValue(keys[i]),value:await window.rqEncodePortableValue(values[i])});
+                        stores.push({name:storeName,keyPath:store.keyPath,autoIncrement:store.autoIncrement,indexes,records});
                     }
                     databases.push({name,version:db.version,stores});
                 } catch(e) { skipped.push(name+': '+String(e?.message||e)); }
                 finally { try{db?.close();}catch(_){} }
             }
+            const fatal=skipped.filter(x=>!x.startsWith('rq-al-khansa-safety-settings:'));
+            if(fatal.length) throw new Error('Backup tidak lengkap. Database IndexedDB gagal dibaca: '+fatal.join(' | '));
             return {supported:true,databases,skipped};
         };
 
         window.rqRestorePortableIndexedDB = async function(payload, mode='replace') {
-            if (!payload || !Array.isArray(payload.databases)) return {restored:0,skipped:['Tidak ada paket IndexedDB pada file.']};
-            if (!window.indexedDB) throw new Error('IndexedDB tidak tersedia pada perangkat ini.');
+            if(!payload || !Array.isArray(payload.databases)) throw new Error('Paket IndexedDB tidak valid.');
+            if(!window.indexedDB) throw new Error('IndexedDB tidak tersedia pada perangkat ini.');
             const restored=[], skipped=[];
-            const reqPromise = req => new Promise((resolve,reject)=>{req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error||new Error('Permintaan IndexedDB gagal.'));});
-            for (const spec of payload.databases) {
-                if (!spec?.name || spec.name==='rq-al-khansa-safety-settings') { skipped.push(String(spec?.name||'database tidak dikenal')+': database khusus perangkat dilewati.'); continue; }
+            const reqPromise=req=>new Promise((resolve,reject)=>{req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error||new Error('Permintaan IndexedDB gagal.'));});
+            if(mode==='replace' && payload.complete===true && typeof indexedDB.databases==='function') {
+                const keep=new Set((payload.databases||[]).map(x=>String(x?.name||'')));
+                const current=await indexedDB.databases();
+                for(const info of current||[]) {
+                    const name=String(info?.name||'');
+                    if(!name || name==='rq-al-khansa-safety-settings' || keep.has(name) || !(/^(rq[-_]|.*khansa)/i.test(name))) continue;
+                    await new Promise((resolve,reject)=>{const req=indexedDB.deleteDatabase(name);req.onsuccess=resolve;req.onerror=()=>reject(req.error||new Error('Gagal menghapus database lama '+name));req.onblocked=()=>reject(new Error('Penghapusan database '+name+' tertahan tab lain yang masih terbuka.'));});
+                }
+            }
+            for(const rawSpec of payload.databases) {
+                if(!rawSpec?.name || rawSpec.name==='rq-al-khansa-safety-settings') { skipped.push(String(rawSpec?.name||'database tidak dikenal')+': database khusus perangkat dilewati.'); continue; }
                 let db;
                 try {
+                    const spec=await window.rqDecodePortableValue(rawSpec);
                     db=await reqPromise(indexedDB.open(spec.name));
-                    const missing=(spec.stores||[]).filter(st=>!db.objectStoreNames.contains(st.name));
-                    if(missing.length){
+                    const schemaChanges=[];
+                    for(const st of spec.stores||[]) {
+                        if(!db.objectStoreNames.contains(st.name)) schemaChanges.push({type:'store',store:st});
+                        else {
+                            const os=db.transaction(st.name,'readonly').objectStore(st.name);
+                            if(JSON.stringify(os.keyPath)!==JSON.stringify(st.keyPath) || !!os.autoIncrement!==!!st.autoIncrement) throw new Error('Skema object store '+st.name+' berbeda dan tidak aman untuk ditimpa.');
+                            for(const ix of st.indexes||[]) if(!os.indexNames.contains(ix.name)) schemaChanges.push({type:'index',storeName:st.name,index:ix});
+                        }
+                    }
+                    if(schemaChanges.length) {
                         const nextVersion=db.version+1; db.close(); db=null;
                         db=await new Promise((resolve,reject)=>{
                             const req=indexedDB.open(spec.name,nextVersion);
                             req.onupgradeneeded=()=>{
                                 const d=req.result;
-                                for(const st of missing){
-                                    try{
-                                        const options={autoIncrement:!!st.autoIncrement};
-                                        if(st.keyPath!==null && st.keyPath!==undefined) options.keyPath=st.keyPath;
-                                        const os=d.createObjectStore(st.name,options);
-                                        for(const ix of st.indexes||[]){try{os.createIndex(ix.name,ix.keyPath,{unique:!!ix.unique,multiEntry:!!ix.multiEntry});}catch(_){}}
-                                    }catch(_){}
+                                for(const change of schemaChanges) {
+                                    if(change.type==='store') {
+                                        const st=change.store, opts={autoIncrement:!!st.autoIncrement};
+                                        if(st.keyPath!==null && st.keyPath!==undefined) opts.keyPath=st.keyPath;
+                                        const os=d.createObjectStore(st.name,opts);
+                                        for(const ix of st.indexes||[]) os.createIndex(ix.name,ix.keyPath,{unique:!!ix.unique,multiEntry:!!ix.multiEntry});
+                                    } else {
+                                        const os=req.transaction.objectStore(change.storeName), ix=change.index;
+                                        os.createIndex(ix.name,ix.keyPath,{unique:!!ix.unique,multiEntry:!!ix.multiEntry});
+                                    }
                                 }
                             };
-                            req.onsuccess=()=>resolve(req.result);
-                            req.onerror=()=>reject(req.error||new Error('Gagal membuat object store.'));
+                            req.onsuccess=()=>resolve(req.result); req.onerror=()=>reject(req.error||new Error('Gagal memperbarui skema IndexedDB.'));
+                            req.onblocked=()=>reject(new Error('Pemulihan IndexedDB tertahan karena database masih dibuka tab lain. Tutup tab aplikasi lain lalu ulangi.'));
                         });
                     }
-                    for(const st of spec.stores||[]){
-                        if(!db.objectStoreNames.contains(st.name)){skipped.push(spec.name+'/'+st.name+': object store tidak dapat dibuat.');continue;}
+                    if(mode==='replace') {
+                        const includedStores=new Set((spec.stores||[]).map(st=>st.name));
+                        for(const existingStore of Array.from(db.objectStoreNames)) if(!includedStores.has(existingStore)) {
+                            await new Promise((resolve,reject)=>{const tx=db.transaction(existingStore,'readwrite');tx.objectStore(existingStore).clear();tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error||new Error('Gagal membersihkan object store '+existingStore));tx.onabort=()=>reject(tx.error||new Error('Pembersihan object store dibatalkan: '+existingStore));});
+                        }
+                    }
+                    for(const st of spec.stores||[]) {
+                        if(!db.objectStoreNames.contains(st.name)) throw new Error('Object store '+st.name+' tidak tersedia setelah pemulihan skema.');
+                        const records=[];
+                        for(const rec of st.records||[]) records.push({key:await window.rqDecodePortableValue(rec.key),value:await window.rqDecodePortableValue(rec.value)});
                         await new Promise((resolve,reject)=>{
-                            const tx=db.transaction(st.name,'readwrite'),os=tx.objectStore(st.name);
+                            const tx=db.transaction(st.name,'readwrite'), os=tx.objectStore(st.name);
                             if(mode==='replace') os.clear();
-                            for(const rec of st.records||[]){
-                                if(mode==='replace'){
+                            for(const rec of records) {
+                                if(mode==='replace') {
                                     if(os.keyPath!==null) os.put(rec.value); else os.put(rec.value,rec.key);
-                                }else{
-                                    // Mode GABUNGKAN tidak menimpa record yang sudah ada.
-                                    // Record dengan primary key baru ditambahkan; konflik dilaporkan/dilewati.
+                                } else {
                                     const getReq=os.get(rec.key);
-                                    getReq.onsuccess=()=>{
-                                        if(getReq.result!==undefined) return;
-                                        try{if(os.keyPath!==null) os.add(rec.value); else os.add(rec.value,rec.key);}catch(_){}
-                                    };
+                                    getReq.onsuccess=()=>{ if(getReq.result!==undefined) return; try { if(os.keyPath!==null) os.add(rec.value); else os.add(rec.value,rec.key); } catch(err) { try{tx.abort();}catch(_){} } };
+                                    getReq.onerror=()=>{try{tx.abort();}catch(_){}};
                                 }
                             }
                             tx.oncomplete=resolve;
@@ -4600,9 +4700,10 @@
                         });
                     }
                     restored.push(spec.name);
-                } catch(e){skipped.push(spec.name+': '+String(e?.message||e));}
-                finally{try{db?.close();}catch(_){}}
+                } catch(e) { skipped.push(String(rawSpec?.name||'database')+': '+String(e?.message||e)); }
+                finally { try{db?.close();}catch(_){} }
             }
+            if(skipped.length) throw new Error('Restore IndexedDB belum lengkap: '+skipped.join(' | '));
             return {restored:restored.length,databases:restored,skipped};
         };
 
@@ -4655,13 +4756,15 @@
                 const createdBy = window.rqGetVersionOperator();
                 window.showToast?.('Mengumpulkan LocalStorage dan IndexedDB untuk backup...', 'info');
                 const indexedDbBackup = await window.rqCollectPortableIndexedDB();
+                const indexedDbRecordCount = indexedDbBackup.databases.reduce((n,db)=>n+(db.stores||[]).reduce((m,st)=>m+(st.records||[]).length,0),0);
                 const rows = [
                     ['Type', 'Key', 'Value'],
                     ['meta', 'format', 'rq-al-khansa-local-csv'],
-                    ['meta', 'version', '2'],
-                    ['meta', 'backupScope', 'localStorage+indexedDB'],
+                    ['meta', 'version', '3'],
+                    ['meta', 'backupScope', 'localStorage+indexedDB+portable-values'],
                     ['meta', 'indexedDbSupported', String(!!indexedDbBackup.supported)],
                     ['meta', 'indexedDbDatabaseCount', String(indexedDbBackup.databases.length)],
+                    ['meta', 'indexedDbRecordCount', String(indexedDbRecordCount)],
                     ['meta', 'indexedDbSkipped', JSON.stringify(indexedDbBackup.skipped)],
                     ['meta', 'exportedAt', now.toISOString()],
                     ['meta', 'fileId', '__FILE_ID__'],
@@ -4970,6 +5073,17 @@
 
         window.importAllLocalDataFromCsv = async function(file, mode = 'replace', skipConfirm = false, cachedData = null) {
             if (!file) return;
+            let importRollbackSnapshot = null;
+            let importIndexedDbRollback = null;
+            const restoreImportSnapshot = () => {
+                if (!importRollbackSnapshot) return;
+                try {
+                    const now=[];
+                    for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&k.startsWith('rq_'))now.push(k);}
+                    for(const k of now) if(!(k in importRollbackSnapshot)){try{localStorage.removeItem(k);}catch(_){}}
+                    for(const [k,v] of Object.entries(importRollbackSnapshot)){try{localStorage.setItem(k,v);}catch(_){}}
+                } catch(e) { console.error('Rollback LocalStorage gagal:',e); }
+            };
             try {
                 const operator = window.rqGetImportOperator();
                 if (!operator.name) { window.showToast('Nama penginput wajib diisi sebelum Import/Merge.', 'error'); return; }
@@ -4984,30 +5098,13 @@
                 }
                 // Snapshot seluruh kunci rq_* sebelum import. Jika browser kehabisan kuota,
                 // perubahan yang sempat ditulis dibatalkan agar tidak meninggalkan gabungan setengah jadi.
-                const importRollbackSnapshot = {};
+                importRollbackSnapshot = {};
                 try {
                     for (let i = 0; i < localStorage.length; i++) {
                         const k = localStorage.key(i);
                         if (k && k.startsWith('rq_')) importRollbackSnapshot[k] = localStorage.getItem(k);
                     }
                 } catch (_) {}
-                const restoreImportSnapshot = () => {
-                    try {
-                        const now = [];
-                        for (let i = 0; i < localStorage.length; i++) {
-                            const k = localStorage.key(i);
-                            if (k && k.startsWith('rq_')) now.push(k);
-                        }
-                        for (const k of now) if (!(k in importRollbackSnapshot)) {
-                            try { localStorage.removeItem(k); } catch (_) {}
-                        }
-                        for (const [k,v] of Object.entries(importRollbackSnapshot)) {
-                            try { localStorage.setItem(k, v); } catch (_) {}
-                        }
-                    } catch (rollbackError) {
-                        console.error('Pemulihan import tidak lengkap:', rollbackError);
-                    }
-                };
 
                 const parseJson = value => { try { return value == null || value === '' ? null : JSON.parse(value); } catch (_) { return null; } };
                 const isObj = v => !!v && typeof v === 'object' && !Array.isArray(v);
@@ -5118,7 +5215,7 @@
                         const value = String(row[2] ?? '');
                         if (type === 'meta' && key === 'format') formatOk = value === 'rq-al-khansa-local-csv';
                         else if (type === 'meta' && key === 'version') version = value;
-                        else if (type === 'meta' && (window.rqVersionMetaKeys.includes(key) || ['backupScope','indexedDbSupported','indexedDbDatabaseCount','indexedDbSkipped'].includes(key))) sourceMeta[key] = value;
+                        else if (type === 'meta' && (window.rqVersionMetaKeys.includes(key) || ['backupScope','indexedDbSupported','indexedDbDatabaseCount','indexedDbRecordCount','indexedDbSkipped'].includes(key))) sourceMeta[key] = value;
                         else if (type === 'localStorage' && key.startsWith('rq_')) {
                             // Pada GABUNGKAN, data lokal perangkat tidak pernah perlu
                             // masuk ke memori dan tidak pernah ditulis ke perangkat lain.
@@ -5134,7 +5231,7 @@
                 }
 
                 const { imported, importedSantri, importedIndexedDb = [], sourceMeta } = parsed;
-                if (!parsed.formatOk || !['1','2'].includes(String(parsed.version))) throw new Error('CSV bukan file data offline RQ Al-Khansa atau versinya tidak didukung.');
+                if (!parsed.formatOk || !['1','2','3'].includes(String(parsed.version))) throw new Error('CSV bukan file data offline RQ Al-Khansa atau versinya tidak didukung.');
                 if (!Object.keys(imported).length && !Array.isArray(importedSantri) && !importedIndexedDb.length) throw new Error('CSV tidak berisi data aplikasi.');
                 if (Array.isArray(importedSantri) && importedSantri.some(x => !x || typeof x !== 'object' || Array.isArray(x))) throw new Error('Data Master Santri dalam CSV tidak valid.');
 
@@ -5179,8 +5276,9 @@
                 }
 
                 let indexedDbResult={restored:0,databases:[],skipped:[]};
-                if(importedIndexedDb.length){
-                    indexedDbResult=await window.rqRestorePortableIndexedDB({databases:importedIndexedDb},mode);
+                if(importedIndexedDb.length || String(parsed.version)==='3'){
+                    importIndexedDbRollback=await window.rqCollectPortableIndexedDB();
+                    indexedDbResult=await window.rqRestorePortableIndexedDB({databases:importedIndexedDb,complete:String(parsed.version)==='3'},mode);
                     if(indexedDbResult.skipped?.length) console.warn('Sebagian IndexedDB tidak dipulihkan:',indexedDbResult.skipped);
                 }
 
@@ -5188,7 +5286,7 @@
                 const targetAfterH=targetAfter?.hafalan&&typeof targetAfter.hafalan==='object'?Object.keys(targetAfter.hafalan).length:0;
                 const targetAfterM=targetAfter?.murojaah&&typeof targetAfter.murojaah==='object'?Object.keys(targetAfter.murojaah).length:0;
                 const resultBox=document.getElementById('rqOfflineCsvImportStatus');
-                if(resultBox){resultBox.className='mt-3 rounded-xl border-2 border-emerald-300 bg-emerald-50 dark:bg-slate-900/70 dark:border-emerald-800 p-4';resultBox.innerHTML=`<div class="flex items-center gap-2 font-black text-emerald-700 dark:text-emerald-300"><i class="fa-solid fa-circle-check"></i> Import berhasil</div><div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3 text-xs"><div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5"><b>Mode:</b><br>${mode==='merge'?'Gabungkan Antar-Perangkat':'Ganti'}</div><div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5"><b>File:</b><br>${String(file.name).replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]))}</div><div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5"><b>Kunci data:</b><br>${jumlah}</div><div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5"><b>Master santri dari file:</b><br>${Array.isArray(importedSantri)?importedSantri.length:0}</div><div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5"><b>Target Hafalan:</b><br>${targetAfterH} santri</div><div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5"><b>Target Muroja’ah:</b><br>${targetAfterM} santri</div><div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5"><b>IndexedDB dipulihkan:</b><br>${indexedDbResult.restored} database</div></div>${indexedDbResult.skipped?.length?`<div class="mt-2 text-xs font-bold text-amber-700 dark:text-amber-300">Catatan IndexedDB: ${indexedDbResult.skipped.map(x=>String(x).replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]))).join(' · ')}</div>`:''}${sourceMeta.indexedDbSkipped?`<div class="mt-2 text-xs font-bold text-amber-700 dark:text-amber-300">Catatan dari file backup: ${String(sourceMeta.indexedDbSkipped).replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]))}</div>`:''}<div class="mt-3 text-xs font-black text-emerald-700 dark:text-emerald-300">✓ Data aplikasi diproses sesuai mode ${mode==='merge'?'Gabungkan':'Ganti'}.</div><div class="mt-2 text-xs font-bold text-slate-600 dark:text-slate-400">Aplikasi akan dimuat ulang sebentar lagi.</div>`;}
+                if(resultBox){resultBox.className='mt-3 rounded-xl border-2 border-emerald-300 bg-emerald-50 dark:bg-slate-900/70 dark:border-emerald-800 p-4';resultBox.innerHTML=`<div class="flex items-center gap-2 font-black text-emerald-700 dark:text-emerald-300"><i class="fa-solid fa-circle-check"></i> Import berhasil</div><div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3 text-xs"><div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5"><b>Mode:</b><br>${mode==='merge'?'Gabungkan Antar-Perangkat':'Ganti'}</div><div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5"><b>File:</b><br>${String(file.name).replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]))}</div><div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5"><b>Kunci data:</b><br>${jumlah}</div><div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5"><b>Master santri dari file:</b><br>${Array.isArray(importedSantri)?importedSantri.length:0}</div><div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5"><b>Target Hafalan:</b><br>${targetAfterH} santri</div><div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5"><b>Target Muroja’ah:</b><br>${targetAfterM} santri</div><div class="bg-white/80 dark:bg-slate-800 rounded-lg p-2.5"><b>IndexedDB dipulihkan:</b><br>${indexedDbResult.restored} database · ${importedIndexedDb.reduce((n,d)=>n+(d.stores||[]).reduce((m,st)=>m+(st.records||[]).length,0),0)} record</div></div>${indexedDbResult.skipped?.length?`<div class="mt-2 text-xs font-bold text-amber-700 dark:text-amber-300">Catatan IndexedDB: ${indexedDbResult.skipped.map(x=>String(x).replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]))).join(' · ')}</div>`:''}${sourceMeta.indexedDbSkipped?`<div class="mt-2 text-xs font-bold text-amber-700 dark:text-amber-300">Catatan dari file backup: ${String(sourceMeta.indexedDbSkipped).replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]))}</div>`:''}<div class="mt-3 text-xs font-black text-emerald-700 dark:text-emerald-300">✓ Data aplikasi diproses sesuai mode ${mode==='merge'?'Gabungkan':'Ganti'}.</div><div class="mt-2 text-xs font-bold text-slate-600 dark:text-slate-400">Aplikasi akan dimuat ulang sebentar lagi.</div>`;}
                 try { window.hydrateInputFormsFromHistory?.(true); window.persistFormCache?.(true); window.generateWaReport?.(); window.updateInlineLiveReportTabButtons?.(); window.rqMarkImportRefreshPending?.(); } catch(e){ console.warn('Refresh tampilan setelah Import CSV:',e); }
                 try {
                     const afterStorage={};
@@ -5208,7 +5306,10 @@
                 console.error(e);
                 // Jika error terjadi karena kuota saat proses simpan, pulihkan data
                 // rq_* yang sempat berubah sebelum menampilkan pesan kepada pengguna.
-                try { if (typeof restoreImportSnapshot === 'function') restoreImportSnapshot(); } catch (_) {}
+                try { restoreImportSnapshot(); } catch (_) {}
+                try {
+                    if(importIndexedDbRollback) await window.rqRestorePortableIndexedDB({...importIndexedDbRollback,complete:true},'replace');
+                } catch(rollbackDbError) { console.error('Rollback IndexedDB gagal:',rollbackDbError); }
                 const msg = String(e?.message || e || '');
                 if (/quota|exceeded the quota|storage/i.test(msg)) {
                     window.showToast('Import CSV dibatalkan karena ruang penyimpanan browser tidak cukup. Data yang sempat berubah sudah dicoba dipulihkan. Jangan hapus data; ekspor cadangan terlebih dahulu. Gunakan file HTML versi penyimpanan besar setelah perbaikan lanjutan.', 'error');
